@@ -1,0 +1,225 @@
+/*
+ * Copyright (C) 2026 Darkmine Pty Ltd
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ */
+.sidebar {
+  width: 240px;
+  height: 100vh;
+  background: var(--color-surface-container);
+  display: flex;
+  flex-direction: column;
+  padding: 16px 0 8px;
+  z-index: 10;
+}
+
+.sidebar-header {
+  padding: 0 20px 16px;
+  margin-bottom: 12px;
+}
+
+.brand-eyebrow {
+  font-family: var(--font-display);
+  font-size: var(--type-label-caps-size);
+  letter-spacing: var(--type-label-caps-tracking);
+  text-transform: uppercase;
+  font-weight: 700;
+  color: var(--color-on-surface-variant);
+  margin-bottom: 4px;
+}
+
+.brand-title {
+  font-family: var(--font-display);
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--color-on-surface);
+  letter-spacing: -0.01em;
+  line-height: 1.15;
+}
+
+.sidebar-version {
+  display: block;
+  font-size: 11px;
+  color: var(--color-on-surface-variant);
+  margin-top: 6px;
+  letter-spacing: 0.05em;
+}
+
+.sidebar-menu {
+  list-style: none;
+  margin: 0 0 16px;
+  padding: 0;
+}
+
+.sidebar-menu a {
+  display: block;
+  padding: 10px 20px;
+  text-decoration: none;
+  color: var(--color-on-surface-variant);
+  border-left: 3px solid transparent;
+  font-size: 14px;
+  transition: background 120ms ease, color 120ms ease, border-color 120ms ease;
+}
+
+.sidebar-menu a:hover {
+  background: var(--color-surface-container-high);
+  color: var(--color-on-surface);
+}
+
+.sidebar-menu a.active {
+  background: var(--color-surface-container-high);
+  color: var(--color-on-surface);
+  border-left-color: hsl(var(--accent));
+  font-weight: 500;
+}
+
+.sidebar-section {
+  padding: 10px 16px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.sidebar-section .label-caps {
+  margin-bottom: 2px;
+}
+
+/* Matches .sidebar-menu a so a section-level page link reads the same as a
+   top-level menu item. Negative horizontal margin cancels the parent
+   .sidebar-section padding so the hover background and accent bar span the
+   full sidebar width, exactly like the main menu rows. */
+.sidebar-section-link {
+  display: block;
+  padding: 10px 20px;
+  margin: 0 -16px;
+  text-decoration: none;
+  color: var(--color-on-surface-variant);
+  border-left: 3px solid transparent;
+  font-size: 14px;
+  transition: background 120ms ease, color 120ms ease, border-color 120ms ease;
+}
+
+.sidebar-section-link:hover {
+  background: var(--color-surface-container-high);
+  color: var(--color-on-surface);
+}
+
+.sidebar-section-link.active {
+  background: var(--color-surface-container-high);
+  color: var(--color-on-surface);
+  border-left-color: hsl(var(--accent));
+  font-weight: 500;
+}
+
+.sidebar-open-btn {
+  width: 100%;
+  text-align: center;
+}
+
+.sidebar-folder-path {
+  font-size: 11px;
+  color: var(--color-on-surface-variant);
+  word-break: break-all;
+  font-family: var(--font-sans);
+}
+
+.sidebar-close-btn {
+  align-self: flex-start;
+}
+
+.sidebar-slot {
+  padding: 8px 16px 12px;
+}
+
+/* Hide empty slots so the sidebar doesn't show stray bordered bands when
+   the active page hasn't portalled any controls into them. */
+.sidebar-slot:empty {
+  display: none;
+}
+
+.sidebar-footer {
+  margin-top: auto;
+  padding: 10px 20px 8px;
+  font-size: 12px;
+  color: var(--color-on-surface-variant);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.data-source-info {
+  font-size: 11px;
+}
+
+.data-source-text {
+  font-size: 11px;
+  color: var(--color-on-surface-variant);
+}
+
+.zoom-label {
+  display: inline-block;
+  font-size: 11px;
+  letter-spacing: 0.05em;
+}
+
+.sidebar-footer-actions {
+  padding: 8px 16px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: stretch;
+}
+
+.theme-toggle {
+  align-self: center;
+  display: inline-flex;
+  align-items: center;
+  background: var(--color-surface-container-high);
+  border-radius: 9999px;
+  padding: 2px;
+  gap: 0;
+}
+
+.theme-toggle-btn {
+  width: 26px;
+  height: 26px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  color: var(--color-on-surface-variant);
+  cursor: pointer;
+  border-radius: 9999px;
+  padding: 0;
+  transition: background 120ms ease, color 120ms ease;
+}
+
+.theme-toggle-btn:hover {
+  color: var(--color-on-surface);
+}
+
+.theme-toggle-btn.active {
+  background: var(--color-surface-container-highest);
+  color: var(--color-on-surface);
+}
+
+.theme-toggle-btn:focus-visible {
+  outline: none;
+  color: hsl(var(--accent));
+}
+
+.theme-toggle-btn svg {
+  display: block;
+}
+
+.source-link {
+  font-size: 11px;
+  color: var(--color-on-surface-variant);
+  text-decoration: none;
+  text-align: center;
+}
+
+.source-link:hover {
+  color: var(--color-on-surface);
+  text-decoration: underline;
+}
