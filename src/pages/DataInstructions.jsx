@@ -33,7 +33,7 @@ function DataInstructions() {
         <p>
           Column names match baselode&apos;s <code>standardizeColumns</code> aliases verbatim — the
           loader does no remapping. Common synonyms (e.g. <code>lat</code> for <code>latitude</code>,
-          <code> md</code> for <code>depth</code>) are accepted because baselode standardises on read.
+          <code>md</code> for <code>depth</code>) are accepted because baselode standardises on read.
         </p>
 
         <table className="schema-table">

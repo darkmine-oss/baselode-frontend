@@ -304,9 +304,25 @@ function Home() {
         const coords = feature.geometry.coordinates.slice();
         const props = feature.properties || {};
         const holeIdValue = props[HOLE_ID] || props.holeId || '—';
-        popupRef.current.setLngLat(coords).setHTML(
-          `<div class="collar-tooltip"><div><strong>Hole ID:</strong> ${holeIdValue}</div><div><strong>Project:</strong> ${props.project || '—'}</div></div>`
-        ).addTo(map);
+        const projectValue = props.project || '—';
+
+        // Build via DOM with textContent rather than setHTML — hole_id and
+        // project come from user-supplied CSV/Parquet and could contain
+        // markup. In a Tauri webview that would be a real XSS surface (IPC
+        // access). setDOMContent + textContent is safe by construction.
+        const container = document.createElement('div');
+        container.className = 'collar-tooltip';
+        const idRow = document.createElement('div');
+        const idLabel = document.createElement('strong');
+        idLabel.textContent = 'Hole ID:';
+        idRow.append(idLabel, ' ', document.createTextNode(holeIdValue));
+        const projRow = document.createElement('div');
+        const projLabel = document.createElement('strong');
+        projLabel.textContent = 'Project:';
+        projRow.append(projLabel, ' ', document.createTextNode(projectValue));
+        container.append(idRow, projRow);
+
+        popupRef.current.setLngLat(coords).setDOMContent(container).addTo(map);
       });
       map.on('mouseleave', 'collars-unclustered', () => {
         map.getCanvas().style.cursor = '';

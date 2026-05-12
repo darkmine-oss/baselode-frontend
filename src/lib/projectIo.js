@@ -61,6 +61,7 @@ export async function readProjectFolder(folderPath) {
   const fs = await import('@tauri-apps/plugin-fs');
 
   const out = { folderPath, files: {}, formats: {} };
+  let scopeRejected = false;
 
   for (const key of PROJECT_FILE_KEYS) {
     out.files[key] = null;
@@ -68,7 +69,15 @@ export async function readProjectFolder(folderPath) {
     for (const ext of EXTENSIONS_BY_PRIORITY) {
       const fullPath = joinPath(folderPath, `${key}.${ext}`);
       let present = false;
-      try { present = await fs.exists(fullPath); } catch (e) { present = false; }
+      try {
+        present = await fs.exists(fullPath);
+      } catch (e) {
+        // A "forbidden path" error from the fs plugin is the strongest
+        // signal that the picked folder sits outside the configured
+        // scope. Note it for a clearer error message below.
+        if (isScopeError(e)) scopeRejected = true;
+        present = false;
+      }
       if (!present) continue;
 
       try {
@@ -81,6 +90,7 @@ export async function readProjectFolder(folderPath) {
         out.formats[key] = ext;
         break;
       } catch (e) {
+        if (isScopeError(e)) scopeRejected = true;
         console.warn(`Failed to read ${key}.${ext}:`, e);
       }
     }
@@ -88,10 +98,21 @@ export async function readProjectFolder(folderPath) {
 
   for (const required of REQUIRED_FILES) {
     if (out.files[required] == null) {
+      if (scopeRejected) {
+        throw new Error(
+          `That folder is outside the locations this app is allowed to read. ` +
+          `Place the project inside your home, Desktop, Documents, or Downloads folder.`
+        );
+      }
       throw new Error(`Missing required file "${required}.csv" or "${required}.parquet" in folder.`);
     }
   }
   return out;
+}
+
+function isScopeError(err) {
+  const msg = String(err?.message || err || '').toLowerCase();
+  return msg.includes('forbidden path') || msg.includes('not allowed') || msg.includes('not in scope');
 }
 
 /**

@@ -49,4 +49,4 @@ These licences operate independently and do not override each other.
 ---
 
 ## Attribution
-See `ATTRIBUTION.md` for the required attribution wording and source details for the data.
+See `test-data/demo-gswa/ATTRIBUTION.md` for the required attribution wording and source details for the data.

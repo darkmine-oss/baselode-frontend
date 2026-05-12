@@ -38,6 +38,11 @@ Only `collars` is required. If both formats are present for a file the
 **Parquet copy wins** (smaller, faster to parse). Missing files are skipped
 silently and the affected viewer falls back to a placeholder.
 
+The desktop app is permitted to read only from your home directory and the
+common user-data roots (Desktop / Documents / Downloads / platform app-data).
+Folders on a different volume or under a system path will fail with a clear
+error — copy or symlink the project into one of the allowed roots.
+
 ### Canonical schema
 
 Column names match `baselode`'s `standardizeColumns` aliases verbatim — the

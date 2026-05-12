@@ -215,15 +215,23 @@ function Drillhole() {
     setSelectedHoleId('');
   }, [collars, rawCsv?.survey, rawCsv?.precomputed]);
 
+  // De-dupe happens inside the functional updater so the latest state is
+  // consulted, not whatever `holes` was in the closure when this callback
+  // was created. That removes a TOCTOU window if Add is fired twice before
+  // React commits the first append. As a bonus we can drop `holes` from
+  // the deps so the callback stays referentially stable.
   const addHoleToScene = useCallback((holeId) => {
     if (!holeId) return;
     setAddError('');
-    if (holes.some((h) => h.id === holeId)) return; // already added
+
+    const appendIfNew = (entry) => {
+      setHoles((prev) => (prev.some((h) => h.id === entry.id) ? prev : [...prev, entry]));
+    };
 
     // 1) Precomputed wins.
     const pre = precomputedByHole[holeId];
     if (pre) {
-      setHoles((prev) => [...prev, pre]);
+      appendIfNew(pre);
       return;
     }
 
@@ -264,8 +272,8 @@ function Drillhole() {
       setAddError(`No projectable points for ${holeId}.`);
       return;
     }
-    setHoles((prev) => [...prev, { id: h.id, project: h.project, points: pts }]);
-  }, [holes, collars, surveyRows, precomputedByHole, project]);
+    appendIfNew({ id: h.id, project: h.project, points: pts });
+  }, [collars, surveyRows, precomputedByHole, project]);
 
   const removeHoleFromScene = useCallback((holeId) => {
     setHoles((prev) => prev.filter((h) => h.id !== holeId));

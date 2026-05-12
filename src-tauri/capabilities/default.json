@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Capabilities granted to the main window. Lets the user pick a folder via the system dialog and read CSV files from inside it. Filesystem access is broad on purpose: this app is read-only and only opens paths the user explicitly chose via the native folder picker.",
+  "description": "Capabilities granted to the main window. Lets the user pick a folder via the system dialog and read CSV/Parquet files from inside it. Scope is limited to common user-data roots so the webview can't reach system directories even if a future code path slipped untrusted content into the page.",
   "windows": ["main"],
   "permissions": [
     "core:default",
@@ -12,7 +12,15 @@
     "fs:allow-exists",
     {
       "identifier": "fs:scope",
-      "allow": [{ "path": "**" }]
+      "allow": [
+        { "path": "$HOME/**" },
+        { "path": "$DESKTOP/**" },
+        { "path": "$DOCUMENT/**" },
+        { "path": "$DOWNLOAD/**" },
+        { "path": "$DATA/**" },
+        { "path": "$LOCALDATA/**" },
+        { "path": "$APPDATA/**" }
+      ]
     }
   ]
 }
