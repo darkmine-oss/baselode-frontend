@@ -1,0 +1,174 @@
+# Build + release Baselode Viewer for macOS / Windows / Linux.
+#
+# Triggers:
+#   - Push of a SemVer tag (e.g. v0.1.5).  The leading 'v' is stripped before
+#     it gets written into package.json / tauri.conf.json / Cargo.toml.
+#   - Manual workflow_dispatch with a `version` input (e.g. 0.1.5).  This is
+#     the convenient way to cut a release without first creating a tag locally
+#     — the workflow tags the repo for you.
+#
+# The build matrix produces:
+#   - macOS  → .app bundle (we disabled .dmg in tauri.conf.json)
+#   - Windows → .msi + NSIS .exe
+#   - Linux  → .deb + .AppImage
+#
+# Artefacts are attached to a draft GitHub Release; review and publish from
+# the Releases page when you're happy.
+
+name: release
+
+on:
+  push:
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+'
+      - 'v[0-9]+.[0-9]+.[0-9]+-*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to release (e.g. 0.1.5, no leading v)'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  resolve-version:
+    name: Resolve version
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.compute.outputs.version }}
+      tag: ${{ steps.compute.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Compute version
+        id: compute
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            VERSION="${{ inputs.version }}"
+          else
+            VERSION="${GITHUB_REF_NAME#v}"
+          fi
+          if ! echo "$VERSION" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+(-.*)?$'; then
+            echo "::error::Invalid version '$VERSION'.  Use SemVer like 0.1.5."
+            exit 1
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Resolved version: $VERSION"
+
+      - name: Create tag (workflow_dispatch only)
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="v${{ steps.compute.outputs.version }}"
+          if git rev-parse "$TAG" >/dev/null 2>&1; then
+            echo "Tag $TAG already exists — skipping create."
+          else
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git tag -a "$TAG" -m "Release $TAG"
+            git push origin "$TAG"
+          fi
+
+  build:
+    name: Build (${{ matrix.platform }})
+    needs: resolve-version
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: macos-latest
+            rust-targets: 'aarch64-apple-darwin,x86_64-apple-darwin'
+            tauri-args: '--target universal-apple-darwin'
+          - platform: windows-latest
+            rust-targets: ''
+            tauri-args: ''
+          - platform: ubuntu-22.04
+            rust-targets: ''
+            tauri-args: ''
+
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.rust-targets }}
+
+      - name: Cache Cargo registry + target
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+
+      - name: Install Linux build dependencies
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libappindicator3-dev \
+            librsvg2-dev \
+            patchelf \
+            build-essential \
+            curl \
+            wget \
+            file \
+            libssl-dev \
+            libgtk-3-dev \
+            libayatana-appindicator3-dev
+
+      - name: Inject release version into source files
+        shell: bash
+        env:
+          VERSION: ${{ needs.resolve-version.outputs.version }}
+        run: |
+          set -euo pipefail
+          echo "Writing version $VERSION into package.json, tauri.conf.json, Cargo.toml"
+          npm version "$VERSION" --no-git-tag-version --allow-same-version >/dev/null
+          # tauri.conf.json — use jq
+          jq --arg v "$VERSION" '.version = $v' src-tauri/tauri.conf.json > src-tauri/tauri.conf.json.tmp
+          mv src-tauri/tauri.conf.json.tmp src-tauri/tauri.conf.json
+          # Cargo.toml — replace only the [package] version line (first match)
+          python3 - "$VERSION" <<'PY'
+          import re, sys, pathlib
+          version = sys.argv[1]
+          path = pathlib.Path('src-tauri/Cargo.toml')
+          text = path.read_text()
+          new = re.sub(r'(?m)^version\s*=\s*"[^"]*"', f'version = "{version}"', text, count=1)
+          path.write_text(new)
+          PY
+          echo "---"
+          grep '"version"' package.json | head -1
+          grep '"version"' src-tauri/tauri.conf.json | head -1
+          grep -m1 '^version' src-tauri/Cargo.toml
+
+      - name: Install npm dependencies
+        run: npm ci
+
+      - name: Build + bundle (Tauri)
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: ${{ needs.resolve-version.outputs.tag }}
+          releaseName: 'Baselode Viewer ${{ needs.resolve-version.outputs.tag }}'
+          releaseBody: |
+            Baselode Viewer ${{ needs.resolve-version.outputs.tag }}
+
+            Bundled artefacts for macOS (universal .app), Windows (.msi / .exe),
+            and Linux (.deb / .AppImage).  Sourced from tag `${{ needs.resolve-version.outputs.tag }}`.
+          releaseDraft: true
+          prerelease: false
+          args: ${{ matrix.tauri-args }}

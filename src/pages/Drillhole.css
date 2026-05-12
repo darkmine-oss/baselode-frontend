@@ -1,0 +1,284 @@
+/*
+ * Copyright (C) 2026 Darkmine Pty Ltd
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ */
+.drillhole-container {
+  width: 100%;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--color-background);
+  box-sizing: border-box;
+}
+
+.drillhole-header {
+  background: var(--color-surface-container-low);
+  padding: 16px 20px 12px;
+}
+
+.drillhole-header h1 {
+  font-family: var(--font-display);
+  font-size: 20px;
+  font-weight: 500;
+  color: var(--color-on-surface);
+  margin-bottom: 10px;
+}
+
+.drillhole-controls {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.drillhole-color-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--color-on-surface-variant);
+}
+
+.drillhole-projection-slider {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--color-on-surface-variant);
+}
+
+.drillhole-projection-slider input[type="range"] {
+  width: 90px;
+  cursor: pointer;
+  accent-color: hsl(var(--accent));
+}
+
+.drillhole-select {
+  padding: 4px 8px;
+  border: var(--border-hairline) solid var(--color-outline-variant);
+  background: var(--color-surface-container);
+  color: var(--color-on-surface);
+  font-size: 12px;
+  font-family: inherit;
+}
+
+.drillhole-info {
+  font-size: 12px;
+  color: var(--color-on-surface-variant);
+}
+
+/* Sidebar 3D Scene controls */
+.three-d-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.three-d-control {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 11px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--color-on-surface-variant);
+}
+
+.three-d-control select {
+  width: 100%;
+  border: var(--border-hairline) solid var(--color-outline-variant);
+  background: var(--color-surface-container);
+  color: var(--color-on-surface);
+  padding: 4px 6px;
+  font-size: 12px;
+  font-family: inherit;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.three-d-control select:focus {
+  outline: none;
+  border-color: hsl(var(--accent));
+}
+
+.three-d-control select:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.three-d-added-list {
+  list-style: none;
+  margin: 4px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.three-d-added-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 4px 6px;
+  background: var(--color-surface-container-low);
+  font-size: 12px;
+  color: var(--color-on-surface);
+}
+
+.three-d-added-list .hole-id {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 11px;
+}
+
+.three-d-added-list .remove-btn {
+  appearance: none;
+  border: none;
+  background: transparent;
+  color: var(--color-on-surface-variant);
+  width: 18px;
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+  padding: 0;
+  flex-shrink: 0;
+}
+
+.three-d-added-list .remove-btn:hover {
+  color: var(--color-error);
+}
+
+.drillhole-legend {
+  width: 100%;
+  padding-top: 8px;
+}
+
+.drillhole-legend-title {
+  font-size: 11px;
+  color: var(--color-on-surface-variant);
+  margin-bottom: 6px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.drillhole-legend-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+}
+
+.drillhole-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--color-on-surface);
+}
+
+.drillhole-legend-swatch {
+  width: 14px;
+  height: 10px;
+  border: 1px solid var(--color-outline-variant);
+}
+
+.canvas-container {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+  background: var(--color-surface-container-low);
+}
+
+.canvas-container canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.zoom-slider-overlay {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  background: var(--color-surface-container);
+  padding: 8px 6px;
+}
+
+.zoom-slider-overlay .zoom-label {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-on-surface-variant);
+  line-height: 1;
+  user-select: none;
+}
+
+.zoom-slider-track {
+  width: 20px;
+  height: 120px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: visible;
+}
+
+.zoom-slider {
+  width: 120px;
+  transform: rotate(-90deg);
+  cursor: pointer;
+  accent-color: hsl(var(--accent));
+}
+
+.placeholder-message {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  text-align: center;
+  color: var(--color-on-surface-variant);
+  pointer-events: none;
+}
+
+.placeholder-message p {
+  font-size: 14px;
+  margin: 0;
+}
+
+.selection-popup {
+  position: absolute;
+  bottom: 20px;
+  right: 20px;
+  background: var(--color-surface-container);
+  padding: 12px 14px;
+  min-width: 220px;
+  color: var(--color-on-surface);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.selection-header {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.selection-body {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--color-on-surface-variant);
+}

@@ -1,0 +1,36 @@
+{
+  "name": "baselode-viewer",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Baselode Viewer — desktop drilling-data viewer by Darkmine, powered by the baselode library.",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "tauri": "tauri",
+    "tauri:dev": "tauri dev",
+    "tauri:build": "tauri build"
+  },
+  "dependencies": {
+    "@tauri-apps/api": "^2.1.1",
+    "@tauri-apps/plugin-dialog": "^2.0.1",
+    "@tauri-apps/plugin-fs": "^2.0.2",
+    "baselode": "^0.1.21",
+    "hyparquet": "^1.25.8",
+    "maplibre-gl": "^5.16.0",
+    "papaparse": "^5.4.1",
+    "plotly.js-dist-min": "^2.32.0",
+    "proj4": "^2.11.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-router-dom": "^6.20.0",
+    "three": "^0.162.0",
+    "three-viewport-gizmo": "^2.2.0"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.1.0",
+    "@vitejs/plugin-react": "^4.2.1",
+    "vite": "^5.0.8"
+  }
+}

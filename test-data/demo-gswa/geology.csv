@@ -1,0 +1,11 @@
+hole_id,from,to,geology_code,geology_description,interpretation,regolith,weathering
+FRC-1,0.0,0.5,,,,,
+FRC-1,0.5,2.0,,,,,
+FRC-1,2.0,7.0,,,,,
+FRC-1,7.0,10.0,,,,,
+FRC-1,10.0,32.0,,,,,
+FRC-1,32.0,47.0,,,,,
+FRC-1,47.0,48.0,,,,,
+FRC-1,48.0,49.0,,,,,
+FRC-1,49.0,58.0,,,,,
+FRC-1,58.0,61.0,,,,,

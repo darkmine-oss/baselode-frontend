@@ -1,0 +1,36 @@
+/*
+ * Copyright (C) 2026 Darkmine Pty Ltd
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ *
+ * Theme tokens: import light first then dark, so `class="dark"` on <html>
+ * opts into the noir scheme and removing it returns to alabaster.
+ */
+@import './styles/light.css';
+@import './styles/dark.css';
+@import './styles/app.css';
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+body {
+  font-family: var(--font-sans);
+  background: var(--color-background);
+  color: var(--color-on-background);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+button {
+  font-family: inherit;
+}

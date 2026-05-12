@@ -1,0 +1,169 @@
+/*
+ * Neo-Gothic Noir — Dark theme tokens
+ *
+ * Two layers in this file:
+ *   1. Raw token vars   (`--color-*`, `--space-*`, `--type-*`)  ← canonical
+ *   2. Tailwind/shadcn aliases (`--background`, `--primary`, …) ← HSL channels
+ *      so `hsl(var(--token))` setups in tailwind.config.js work unchanged.
+ *
+ * Apply by importing once and adding `class="dark"` (or `:root`) on <html>.
+ *
+ * Token shape is harmonized with light/tokens.css — same keys exist in both.
+ */
+
+.dark {
+  /* ─── Color · Surface ─────────────────────────────────────────── */
+  --color-background: #131313;
+  --color-on-background: #e2e2e2;
+  --color-surface: #131313;
+  --color-surface-dim: #131313;
+  --color-surface-bright: #393939;
+  --color-surface-variant: #353535;
+  --color-surface-container-lowest: #0e0e0e;
+  --color-surface-container-low: #1b1b1b;
+  --color-surface-container: #1f1f1f;
+  --color-surface-container-high: #2a2a2a;
+  --color-surface-container-highest: #353535;
+  --color-on-surface: #e2e2e2;
+  --color-on-surface-variant: #cac6b9;
+  --color-inverse-surface: #e2e2e2;
+  --color-inverse-on-surface: #303030;
+  --color-outline: #949184;
+  --color-outline-variant: #49473d;
+  --color-surface-tint: #ccc89e;
+
+  /* ─── Color · Primary (the pale-lemon accent family) ──────────── */
+  --color-primary: #ffffff;
+  --color-on-primary: #333113;
+  --color-primary-container: #e9e4b8;
+  --color-on-primary-container: #686643;
+  --color-inverse-primary: #62603d;
+  --color-primary-fixed: #e9e4b8;
+  --color-primary-fixed-dim: #ccc89e;
+  --color-on-primary-fixed: #1e1c03;
+  --color-on-primary-fixed-variant: #4a4828;
+
+  /* ─── Color · Secondary ───────────────────────────────────────── */
+  --color-secondary: #c7c6c6;
+  --color-on-secondary: #2f3131;
+  --color-secondary-container: #484949;
+  --color-on-secondary-container: #b8b8b8;
+  --color-secondary-fixed: #e3e2e2;
+  --color-secondary-fixed-dim: #c7c6c6;
+  --color-on-secondary-fixed: #1a1c1c;
+  --color-on-secondary-fixed-variant: #464747;
+
+  /* ─── Color · Tertiary ────────────────────────────────────────── */
+  --color-tertiary: #ffffff;
+  --color-on-tertiary: #313030;
+  --color-tertiary-container: #e5e2e1;
+  --color-on-tertiary-container: #656464;
+  --color-tertiary-fixed: #e5e2e1;
+  --color-tertiary-fixed-dim: #c8c6c5;
+  --color-on-tertiary-fixed: #1c1b1b;
+  --color-on-tertiary-fixed-variant: #474746;
+
+  /* ─── Color · Error ───────────────────────────────────────────── */
+  --color-error: #ffb4ab;
+  --color-on-error: #690005;
+  --color-error-container: #93000a;
+  --color-on-error-container: #ffdad6;
+
+  /* ─── Typography ──────────────────────────────────────────────── */
+  --font-sans: "Inter", system-ui, sans-serif;
+  --font-display: "Lexend", "Inter", system-ui, sans-serif;
+  --font-gothic: "PlainGermanica", "Lexend", serif;
+
+  --type-display-gothic-size: 64px;
+  --type-display-gothic-weight: 400;
+  --type-display-gothic-line: 1.1;
+  --type-display-gothic-tracking: 0.05em;
+
+  --type-display-lg-size: 48px;
+  --type-display-lg-weight: 600;
+  --type-display-lg-line: 1.1;
+  --type-display-lg-tracking: -0.02em;
+
+  --type-headline-lg-size: 32px;
+  --type-headline-lg-weight: 600;
+  --type-headline-lg-line: 1.2;
+  --type-headline-lg-tracking: -0.02em;
+
+  --type-headline-md-size: 24px;
+  --type-headline-md-weight: 500;
+  --type-headline-md-line: 1.3;
+  --type-headline-md-tracking: -0.01em;
+
+  --type-body-lg-size: 18px;
+  --type-body-lg-weight: 400;
+  --type-body-lg-line: 1.6;
+  --type-body-lg-tracking: 0.01em;
+
+  --type-body-md-size: 16px;
+  --type-body-md-weight: 400;
+  --type-body-md-line: 1.5;
+  --type-body-md-tracking: 0em;
+
+  --type-label-caps-size: 12px;
+  --type-label-caps-weight: 700;
+  --type-label-caps-line: 1;
+  --type-label-caps-tracking: 0.15em;
+
+  --type-code-alt-size: 14px;
+  --type-code-alt-weight: 400;
+  --type-code-alt-line: 1.4;
+  --type-code-alt-tracking: 0.05em;
+
+  /* ─── Spacing ─────────────────────────────────────────────────── *
+   * stack-* = vertical rhythm (margins / gaps between rows)        *
+   * inline-* = horizontal rhythm (margins / gaps between cells)    *
+   * gutter / margin = layout-level coarse tokens                   */
+  --space-unit: 4px;
+  --space-gutter: 24px;
+  --space-margin: 40px;
+
+  --space-stack-xs: 4px;
+  --space-stack-sm: 8px;
+  --space-stack-md: 16px;
+  --space-stack-lg: 32px;
+  --space-stack-xl: 64px;
+
+  --space-inline-xs: 4px;
+  --space-inline-sm: 8px;
+  --space-inline-md: 16px;
+  --space-inline-lg: 32px;
+  --space-inline-xl: 64px;
+
+  /* ─── Shape & border ──────────────────────────────────────────── */
+  --radius: 0px;
+  --border-hairline: 1px;
+
+  /* ─── Tailwind / shadcn HSL aliases ───────────────────────────── *
+   * Format: "H S% L%" — consumed via hsl(var(--token)) in CSS.    */
+  --background: 0 0% 7.5%;          /* #131313 */
+  --foreground: 0 0% 89%;           /* #e2e2e2 */
+
+  --card: 0 0% 12%;                 /* surface-container #1f1f1f */
+  --card-foreground: 0 0% 89%;
+  --popover: 0 0% 16.5%;            /* surface-container-high #2a2a2a */
+  --popover-foreground: 0 0% 89%;
+
+  --primary: 53 53% 81%;            /* primary-container #e9e4b8 */
+  --primary-foreground: 60 22% 15%; /* on-primary #333113 */
+
+  --secondary: 0 0% 28%;            /* secondary-container #484949 */
+  --secondary-foreground: 0 0% 72%; /* on-secondary-container #b8b8b8 */
+
+  --muted: 0 0% 11%;                /* surface-container-low #1b1b1b */
+  --muted-foreground: 49 11% 76%;   /* on-surface-variant #cac6b9 */
+
+  --accent: 53 33% 71%;             /* surface-tint #ccc89e */
+  --accent-foreground: 50 80% 6%;   /* on-primary-fixed #1e1c03 */
+
+  --destructive: 6 100% 84%;        /* error #ffb4ab */
+  --destructive-foreground: 6 100% 21%;
+
+  --border: 49 9% 26%;              /* outline-variant #49473d */
+  --input: 49 9% 26%;
+  --ring: 53 33% 71%;               /* surface-tint */
+}

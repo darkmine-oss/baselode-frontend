@@ -1,0 +1,86 @@
+/*
+ * Copyright (C) 2026 Darkmine Pty Ltd
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ *
+ * App-level shared widget styles built on top of the design tokens.
+ * Both themes share the same selectors; values resolve through the token vars.
+ */
+
+:root {
+  color-scheme: dark;
+}
+
+:root:not(.dark) {
+  color-scheme: light;
+}
+
+.ghost-button {
+  appearance: none;
+  border: var(--border-hairline) solid var(--color-outline-variant);
+  background: transparent;
+  color: var(--color-on-surface);
+  padding: 6px 12px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 120ms ease, color 120ms ease, border-color 120ms ease;
+  letter-spacing: 0.02em;
+}
+
+.ghost-button:hover {
+  background: var(--color-surface-container-high);
+  color: var(--color-on-surface);
+  border-color: var(--color-outline);
+}
+
+.ghost-button.small {
+  padding: 4px 8px;
+  font-size: 12px;
+}
+
+.primary-button {
+  appearance: none;
+  border: var(--border-hairline) solid transparent;
+  background: hsl(var(--accent));
+  color: hsl(var(--accent-foreground));
+  padding: 6px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: filter 120ms ease;
+}
+
+.primary-button:hover {
+  filter: brightness(0.95);
+}
+
+.error-banner {
+  background: var(--color-error-container);
+  color: var(--color-on-error-container);
+  border: var(--border-hairline) solid var(--color-error);
+  padding: 8px 12px;
+  font-size: 13px;
+}
+
+.error-banner.small {
+  padding: 4px 8px;
+  font-size: 12px;
+}
+
+.error-banner.inline {
+  display: inline-block;
+}
+
+.error-text {
+  color: var(--color-error);
+  font-size: 12px;
+}
+
+.label-caps {
+  font-family: var(--font-display);
+  font-size: var(--type-label-caps-size);
+  font-weight: var(--type-label-caps-weight);
+  letter-spacing: var(--type-label-caps-tracking);
+  line-height: var(--type-label-caps-line);
+  text-transform: uppercase;
+  color: var(--color-on-surface-variant);
+}
