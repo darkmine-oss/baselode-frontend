@@ -12,8 +12,7 @@
 #   - Windows → .msi + NSIS .exe
 #   - Linux  → .deb + .AppImage
 #
-# Artefacts are attached to a draft GitHub Release; review and publish from
-# the Releases page when you're happy.
+# Artefacts are attached to a published GitHub Release automatically.
 
 name: release
 
@@ -157,7 +156,7 @@ jobs:
         run: npm ci
 
       - name: Build + bundle (Tauri)
-        uses: tauri-apps/tauri-action@v0
+        uses: tauri-apps/tauri-action@v0.6.0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
@@ -168,6 +167,7 @@ jobs:
 
             Bundled artefacts for macOS (universal .app), Windows (.msi / .exe),
             and Linux (.deb / .AppImage).  Sourced from tag `${{ needs.resolve-version.outputs.tag }}`.
-          releaseDraft: true
+          releaseDraft: false
           prerelease: false
+          assetNamePattern: ${{ matrix.platform == 'macos-latest' && '[name]_[version]_mac[ext]' || '' }}
           args: ${{ matrix.tauri-args }}
