@@ -14,6 +14,7 @@ const MENU = [
   { path: '/', label: 'Map' },
   { path: '/strip-log', label: 'Strip Logs' },
   { path: '/drillhole', label: '3D Scene' },
+  { path: '/analytics', label: 'Analytics' },
 ];
 
 function Sidebar() {

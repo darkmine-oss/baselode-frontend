@@ -14,6 +14,9 @@ folder of CSVs and explore the holes on a map, in 3D, and as strip logs.
   geology-categorical and assay-numeric colouring, and depth strip logs.
 - **Strip Log** — 1×4 grid of independent depth plots (Plotly), one per
   selected hole/property.
+- **Analytics** — scatter / histogram / box / violin / ternary plots over
+  the loaded drillhole assays or surface samples, with categorical
+  colouring (lithology, sample type, etc.).
 
 The Drillhole Block Model and Polygon Grade Blocks viewers from the upstream
 demo are intentionally **out of scope** for this app.
@@ -31,6 +34,8 @@ my-project/
 ├── assays.{parquet,csv}                   (optional — drives the colour-by menu)
 ├── geology.{parquet,csv}                  (optional — categorical colour-by)
 ├── structure.{parquet,csv}                (optional — structural discs in 3D)
+├── surface_samples.{parquet,csv}          (optional — out-of-hole sample points
+│                                              consumed by the Analytics view)
 └── precomputed_desurveyed.{parquet,csv}   (optional — bypasses live desurvey)
 ```
 
@@ -56,6 +61,7 @@ loader does no remapping. Synonyms (e.g. `lat` for `latitude`, `md` for
 | `assays`      | `hole_id`, `from`, `to` | one or more analyte columns (e.g. `Au_PPM`, `Cu_PCT`) |
 | `geology`     | `hole_id`, `from`, `to` | `geology_code`, `geology_description`, plus any other intervaled attributes |
 | `structure`   | `hole_id`, `depth`, `dip`, `azimuth` | `alpha`, `beta`, `strike` |
+| `surface_samples` | `sample_id`, `surface_sample_type` + either (`latitude`, `longitude`) or (`easting`, `northing`, `crs`) | `elevation`, `datasource_surface_sample_id`, `report_number`, `project_id`, any analyte / metadata columns |
 | `precomputed_desurveyed` | `hole_id`, `x`, `y`, `z`, `md` | — (already-projected, scene-frame XYZ) |
 
 `hole_id` is the join key across files — use the same string everywhere.

@@ -16,7 +16,7 @@
     "@tauri-apps/api": "^2.1.1",
     "@tauri-apps/plugin-dialog": "^2.0.1",
     "@tauri-apps/plugin-fs": "^2.0.2",
-    "baselode": "^0.1.21",
+    "baselode": "^0.1.30",
     "hyparquet": "^1.25.8",
     "maplibre-gl": "^5.16.0",
     "papaparse": "^5.4.1",

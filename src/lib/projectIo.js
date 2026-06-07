@@ -24,6 +24,12 @@ export const PROJECT_FILE_KEYS = Object.freeze([
   'geology',
   'structure',
   'precomputed_desurveyed',
+  // Surface samples — rock chips, stream sediments, soil etc.  Not tied
+  // to a drillhole; consumed by the Analytics page for analyte-vs-analyte
+  // exploration on out-of-hole data.  See `parseSurfaceSamples` for the
+  // expected column layout (mirrors baselode.datamodel
+  // BASELODE_DATA_MODEL_SURFACE_SAMPLE).
+  'surface_samples',
 ]);
 
 export const REQUIRED_FILES = ['collars'];
