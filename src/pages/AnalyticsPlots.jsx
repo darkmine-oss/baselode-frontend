@@ -5,7 +5,14 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import Plotly from 'plotly.js-dist-min';
-import {
+// Namespace import — the analytics primitives ship in baselode >= 0.1.30.
+// A named import would hard-error at build time when an older package is
+// installed; the runtime guard below shows an upgrade notice instead.
+import * as baselode from 'baselode';
+import { useProjectData } from '../context/ProjectDataContext.jsx';
+import './AnalyticsPlots.css';
+
+const {
   buildScatterPlotConfig,
   buildHistogramPlotConfig,
   buildBoxPlotConfig,
@@ -14,9 +21,15 @@ import {
   BASELODE_TEMPLATE,
   BASELODE_DARK_TEMPLATE,
   LITHOLOGY_COLOURS,
-} from 'baselode';
-import { useProjectData } from '../context/ProjectDataContext.jsx';
-import './AnalyticsPlots.css';
+} = baselode;
+
+const HAS_ANALYTICS_PRIMITIVES = (
+  typeof buildScatterPlotConfig === 'function'
+  && typeof buildHistogramPlotConfig === 'function'
+  && typeof buildBoxPlotConfig === 'function'
+  && typeof buildViolinPlotConfig === 'function'
+  && typeof buildTernaryPlotConfig === 'function'
+);
 
 // Columns that always describe row geometry / source rather than
 // something to plot — auto-detection skips them.
@@ -236,6 +249,24 @@ function AnalyticsPlots() {
   const ternary = useMemo(() => buildTernaryPlotConfig(activeRows, {
     aProp, bProp, cProp, colorBy: groupBy, colourMap, template,
   }), [activeRows, aProp, bProp, cProp, groupBy, colourMap, template]);
+
+  if (!HAS_ANALYTICS_PRIMITIVES) {
+    return (
+      <div className="analytics-page">
+        <header className="analytics-page__header">
+          <div>
+            <h1>Analytics Plots</h1>
+            <p>This view needs <code>baselode &gt;= 0.1.30</code> for the analytics plot primitives.</p>
+          </div>
+        </header>
+        <p className="analytics-status">
+          The installed <code>baselode</code> doesn't export <code>buildScatterPlotConfig</code> /{' '}
+          <code>buildHistogramPlotConfig</code> / etc. yet.  Update <code>package.json</code>{' '}
+          and run <code>npm install</code> once that version is published, then come back here.
+        </p>
+      </div>
+    );
+  }
 
   if (status !== 'ready') {
     return (
