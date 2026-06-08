@@ -39,7 +39,11 @@ function Drillhole2D() {
   const location = useLocation();
   const { theme } = useTheme();
   const { collars, combinedHoles, status } = useProjectData();
-  const { selections: stripCache, setAllConfigs: setStripCache } = useStripLogSelections();
+  const {
+    selections: stripCache,
+    setAllConfigs: setStripCache,
+    setPanelPatch: setStripPanel,
+  } = useStripLogSelections();
 
   // Both baselode templates (dark and the unnamed default used when no
   // template is passed) set hovermode: 'x unified', which makes categorical
@@ -86,6 +90,37 @@ function Drillhole2D() {
     extraHoles,
     plotCount,
   });
+
+  // Enrich the hook's flat hole list with a `project` field so the
+  // TracePlot's `group+hole` selector can offer a project filter.  An
+  // empty / missing collar.project resolves to '' — the TracePlot
+  // renders it as a "No projects" option and the hole list stays
+  // unfiltered, which is the "no project code → just (none)" case.
+  const holeToProject = useMemo(() => {
+    const map = new Map();
+    for (const collar of collars || []) {
+      if (!collar?.holeId) continue;
+      const project = (collar.project ?? '').toString().trim();
+      if (project) map.set(collar.holeId, project);
+    }
+    return map;
+  }, [collars]);
+
+  const holeOptionsWithProject = useMemo(
+    () => labeledHoleOptions.map((option) => ({
+      ...option,
+      project: holeToProject.get(option.holeId) || '',
+    })),
+    [labeledHoleOptions, holeToProject],
+  );
+
+  const projectOptions = useMemo(() => {
+    const seen = new Set();
+    for (const option of holeOptionsWithProject) {
+      if (option.project) seen.add(option.project);
+    }
+    return [...seen].sort((a, b) => a.localeCompare(b));
+  }, [holeOptionsWithProject]);
 
   useEffect(() => {
     const holeIdFromNav = location.state?.holeId;
@@ -177,17 +212,40 @@ function Drillhole2D() {
         </div>
       ) : (
         <div className="plots-grid">
-          {Array.from({ length: plotCount }).map((_, idx) => (
-            <TracePlot
-              key={idx}
-              config={traceGraphs[idx]?.config || { holeId: '', property: '', chartType: 'markers+line' }}
-              graph={traceGraphs[idx]}
-              holeOptions={labeledHoleOptions}
-              propertyOptions={traceGraphs[idx]?.propertyOptions || []}
-              onConfigChange={(patch) => handleConfigChange(idx, patch)}
-              template={template}
-            />
-          ))}
+          {Array.from({ length: plotCount }).map((_, idx) => {
+            const panelCache = stripCache.configs[idx] || {};
+            const projectId = panelCache.projectId || '';
+            return (
+              <TracePlot
+                key={idx}
+                config={traceGraphs[idx]?.config || { holeId: '', property: '', chartType: 'markers+line' }}
+                graph={traceGraphs[idx]}
+                holeOptions={holeOptionsWithProject}
+                holeSelector={{
+                  kind: 'group+hole',
+                  groupBy: 'project',
+                  groupLabel: 'Project',
+                  groupValue: projectId,
+                  groupOptions: projectOptions,
+                  onGroupChange: (nextProject) => {
+                    setStripPanel(idx, { projectId: nextProject });
+                    // If the panel's current hole isn't in the picked
+                    // project, clear it so the user re-picks one that
+                    // is — otherwise the hole dropdown shows empty
+                    // and the chart still plots the old hole.
+                    const current = traceGraphs[idx]?.config?.holeId;
+                    if (nextProject && current) {
+                      const hole = holeOptionsWithProject.find((h) => h.holeId === current);
+                      if (hole?.project !== nextProject) handleConfigChange(idx, { holeId: '' });
+                    }
+                  },
+                }}
+                propertyOptions={traceGraphs[idx]?.propertyOptions || []}
+                onConfigChange={(patch) => handleConfigChange(idx, patch)}
+                template={template}
+              />
+            );
+          })}
         </div>
       )}
       {dataSourceTarget && createPortal(dataSourceInfo, dataSourceTarget)}

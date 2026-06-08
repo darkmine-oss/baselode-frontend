@@ -9,8 +9,10 @@ import { createContext, useCallback, useContext, useMemo, useState } from 'react
 // back doesn't reset what the user picked.
 
 const INITIAL = {
-  // Array of `{ holeId, property, chartType }` keyed by panel index.
-  // Sparse — index N exists only if that panel has been touched.
+  // Array of `{ holeId, property, chartType, projectId }` keyed by
+  // panel index.  Sparse — index N exists only if that panel has been
+  // touched.  `projectId` is the optional group filter; '' means
+  // unfiltered (every hole is visible in the hole dropdown).
   configs: [],
 };
 
@@ -20,9 +22,30 @@ export function StripLogSelectionsProvider({ children }) {
   const [selections, setSelections] = useState(INITIAL);
 
   // Replace the whole configs array (used when the page mirrors the
-  // hook's current trace graphs back into the cache).
+  // hook's current trace graphs back into the cache).  Preserves the
+  // per-panel `projectId` from the prior cache entry — it doesn't
+  // come from `useDrillholeTraceGrid`, so the mirror would otherwise
+  // wipe it on every panel edit.
   const setAllConfigs = useCallback((configs) => {
-    setSelections((current) => ({ ...current, configs: configs || [] }));
+    setSelections((current) => ({
+      ...current,
+      configs: (configs || []).map((next, idx) => {
+        const prior = current.configs[idx];
+        const projectId = next?.projectId ?? prior?.projectId ?? '';
+        return next ? { ...next, projectId } : null;
+      }),
+    }));
+  }, []);
+
+  // Patch a single panel — used for picks (like the project filter)
+  // that aren't part of the trace-grid hook's per-panel config.
+  const setPanelPatch = useCallback((index, patch) => {
+    setSelections((current) => {
+      const configs = [...current.configs];
+      const existing = configs[index] || { holeId: '', property: '', chartType: '', projectId: '' };
+      configs[index] = { ...existing, ...patch };
+      return { ...current, configs };
+    });
   }, []);
 
   // Reset all panels — currently unused, exposed so a future "clear"
@@ -30,8 +53,8 @@ export function StripLogSelectionsProvider({ children }) {
   const reset = useCallback(() => setSelections(INITIAL), []);
 
   const value = useMemo(
-    () => ({ selections, setAllConfigs, reset }),
-    [selections, setAllConfigs, reset],
+    () => ({ selections, setAllConfigs, setPanelPatch, reset }),
+    [selections, setAllConfigs, setPanelPatch, reset],
   );
 
   return (
