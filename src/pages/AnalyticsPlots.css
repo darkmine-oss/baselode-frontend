@@ -53,14 +53,6 @@
   border-color: #34353b;
 }
 
-.dark-toggle {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 0.85rem;
-  white-space: nowrap;
-}
-
 .analytics-status {
   padding: 12px 14px;
   background: rgba(148, 163, 184, 0.1);
@@ -108,17 +100,6 @@
 .source-toggle__count {
   font-size: 0.72rem;
   color: var(--text-muted, #64748b);
-}
-
-.analytics-controls {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px 14px;
-  align-items: end;
-  padding: 12px;
-  margin-bottom: 16px;
-  background: rgba(148, 163, 184, 0.08);
-  border-radius: 8px;
 }
 
 .prop-select {
