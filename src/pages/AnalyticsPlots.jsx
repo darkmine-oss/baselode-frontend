@@ -342,7 +342,7 @@ function AnalyticsPlots() {
   }
 
   return (
-    <div className={`analytics-page ${useDarkTemplate ? 'analytics-page--dark' : ''}`}>
+    <div className="analytics-page">
       <header className="analytics-page__header">
         <div>
           <h1>Analytics Plots</h1>
