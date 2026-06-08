@@ -132,6 +132,19 @@ function LogToggle({ label, value, onChange }) {
   );
 }
 
+function BarmodeSelect({ value, onChange }) {
+  return (
+    <label className="prop-select">
+      <span>stack</span>
+      <select value={value} onChange={(event) => onChange(event.target.value)}>
+        <option value="overlay">in z (overlay)</option>
+        <option value="stack">in y (stacked)</option>
+        <option value="group">side-by-side</option>
+      </select>
+    </label>
+  );
+}
+
 function PropertySelect({ label, value, onChange, options }) {
   // Render the dropdown alphabetically (case-insensitive) so the list is
   // scannable.  Upstream column ordering is preserved for default picking
@@ -226,6 +239,7 @@ function AnalyticsPlots() {
   const [scatterLogX, setScatterLogX] = useState(true);
   const [scatterLogY, setScatterLogY] = useState(true);
   const [histLogY, setHistLogY] = useState(true);
+  const [histBarmode, setHistBarmode] = useState('overlay');
   const [boxLogY, setBoxLogY] = useState(true);
   const [violinLogY, setViolinLogY] = useState(true);
 
@@ -265,8 +279,9 @@ function AnalyticsPlots() {
   }), [activeRows, xProp, yProp, groupBy, scatterLogX, scatterLogY, colourMap, template]);
 
   const histogram = useMemo(() => buildHistogramPlotConfig(activeRows, {
-    prop: distProp, groupBy, colourMap, log: histLogY, template,
-  }), [activeRows, distProp, groupBy, histLogY, colourMap, template]);
+    prop: distProp, groupBy, colourMap,
+    log: histLogY, barmode: histBarmode, template,
+  }), [activeRows, distProp, groupBy, histLogY, histBarmode, colourMap, template]);
 
   const box = useMemo(() => buildBoxPlotConfig(activeRows, {
     prop: distProp, groupBy, colourMap, log: boxLogY, template,
@@ -388,7 +403,14 @@ function AnalyticsPlots() {
       <PlotPanel
         title={`Histogram — ${distProp}`}
         description={`Overlay grouped by "${groupBy || '(none)'}".`}
-        controls={<LogToggle label="log Y" value={histLogY} onChange={setHistLogY} />}
+        controls={(
+          <>
+            <LogToggle label="log Y" value={histLogY} onChange={setHistLogY} />
+            {groupBy && (
+              <BarmodeSelect value={histBarmode} onChange={setHistBarmode} />
+            )}
+          </>
+        )}
         data={histogram.data}
         layout={histogram.layout}
       />
