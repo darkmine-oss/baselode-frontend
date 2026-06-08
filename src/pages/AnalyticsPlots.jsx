@@ -67,19 +67,35 @@ function detectNumericColumns(rows) {
 
 function detectCategoricalColumns(rows) {
   if (!rows.length) return [];
-  const candidates = new Map();
+  // Per column track distinct values + how many were numeric.  A
+  // column is categorical if (a) it has 2–40 distinct values and
+  // (b) at least half of populated values are non-numeric.  The
+  // "majority-non-numeric" rule lets columns like `geology_code` —
+  // where most rows are strings but a few are integers — through,
+  // which the strict all-non-numeric rule would reject.
+  const stats = new Map();
   for (const row of rows) {
     for (const [key, value] of Object.entries(row)) {
       if (RESERVED_FOR_ANALYTICS.has(key)) continue;
-      if (value == null || value === '') continue;
-      if (Number.isFinite(Number(value))) continue;
-      if (!candidates.has(key)) candidates.set(key, new Set());
-      candidates.get(key).add(String(value));
+      if (value == null) continue;
+      if (typeof value === 'string' && value.trim() === '') continue;
+      if (!stats.has(key)) stats.set(key, { distinct: new Set(), numeric: 0, total: 0 });
+      const entry = stats.get(key);
+      entry.distinct.add(String(value));
+      entry.total += 1;
+      if (Number.isFinite(Number(value))) entry.numeric += 1;
     }
   }
-  return [...candidates.entries()]
-    .filter(([, distinct]) => distinct.size > 1 && distinct.size <= 40)
-    .sort((a, b) => a[1].size - b[1].size)
+  return [...stats.entries()]
+    .filter(([, entry]) => {
+      const distinct = entry.distinct.size;
+      if (distinct < 2 || distinct > 40) return false;
+      // Majority non-numeric — flips false for analyte columns (all
+      // numeric) but keeps geology_code / hole_type / lithology even
+      // when a handful of rows happen to parse as numbers.
+      return entry.numeric * 2 <= entry.total;
+    })
+    .sort((a, b) => a[1].distinct.size - b[1].distinct.size)
     .map(([key]) => key);
 }
 
@@ -278,8 +294,6 @@ function AnalyticsPlots() {
     aProp: ternary.a, bProp: ternary.b, cProp: ternary.c, colorBy: ternary.colorBy, colourMap, template,
   }), [activeRows, ternary, colourMap, template]);
 
-  const hasCategoricals = categoricalColumns.length > 0;
-
   if (status !== 'ready') {
     return (
       <div className="analytics-page">
@@ -316,15 +330,13 @@ function AnalyticsPlots() {
           <>
             <PropertySelect label="X" value={scatter.x} onChange={(x) => setPlot('scatter', { x })} options={numericColumns} />
             <PropertySelect label="Y" value={scatter.y} onChange={(y) => setPlot('scatter', { y })} options={numericColumns} />
-            {hasCategoricals && (
-              <PropertySelect
-                label="Colour by"
-                value={scatter.colorBy}
-                onChange={(colorBy) => setPlot('scatter', { colorBy })}
-                options={categoricalColumns}
-                includeBlank
-              />
-            )}
+            <PropertySelect
+              label="Colour by"
+              value={scatter.colorBy}
+              onChange={(colorBy) => setPlot('scatter', { colorBy })}
+              options={categoricalColumns}
+              includeBlank
+            />
             <LogToggle label="log X" value={scatter.logX} onChange={(logX) => setPlot('scatter', { logX })} />
             <LogToggle label="log Y" value={scatter.logY} onChange={(logY) => setPlot('scatter', { logY })} />
           </>
@@ -339,15 +351,13 @@ function AnalyticsPlots() {
         controls={(
           <>
             <PropertySelect label="Property" value={histogram.prop} onChange={(prop) => setPlot('histogram', { prop })} options={numericColumns} />
-            {hasCategoricals && (
-              <PropertySelect
-                label="Group by"
-                value={histogram.groupBy}
-                onChange={(groupBy) => setPlot('histogram', { groupBy })}
-                options={categoricalColumns}
-                includeBlank
-              />
-            )}
+            <PropertySelect
+              label="Group by"
+              value={histogram.groupBy}
+              onChange={(groupBy) => setPlot('histogram', { groupBy })}
+              options={categoricalColumns}
+              includeBlank
+            />
             <LogToggle label="log Y" value={histogram.logY} onChange={(logY) => setPlot('histogram', { logY })} />
             {histogram.groupBy && (
               <BarmodeSelect value={histogram.barmode} onChange={(barmode) => setPlot('histogram', { barmode })} />
@@ -365,15 +375,13 @@ function AnalyticsPlots() {
           controls={(
             <>
               <PropertySelect label="Property" value={box.prop} onChange={(prop) => setPlot('box', { prop })} options={numericColumns} />
-              {hasCategoricals && (
-                <PropertySelect
-                  label="Group by"
-                  value={box.groupBy}
-                  onChange={(groupBy) => setPlot('box', { groupBy })}
-                  options={categoricalColumns}
-                  includeBlank
-                />
-              )}
+              <PropertySelect
+                label="Group by"
+                value={box.groupBy}
+                onChange={(groupBy) => setPlot('box', { groupBy })}
+                options={categoricalColumns}
+                includeBlank
+              />
               <LogToggle label="log Y" value={box.logY} onChange={(logY) => setPlot('box', { logY })} />
             </>
           )}
@@ -387,15 +395,13 @@ function AnalyticsPlots() {
           controls={(
             <>
               <PropertySelect label="Property" value={violin.prop} onChange={(prop) => setPlot('violin', { prop })} options={numericColumns} />
-              {hasCategoricals && (
-                <PropertySelect
-                  label="Group by"
-                  value={violin.groupBy}
-                  onChange={(groupBy) => setPlot('violin', { groupBy })}
-                  options={categoricalColumns}
-                  includeBlank
-                />
-              )}
+              <PropertySelect
+                label="Group by"
+                value={violin.groupBy}
+                onChange={(groupBy) => setPlot('violin', { groupBy })}
+                options={categoricalColumns}
+                includeBlank
+              />
               <LogToggle label="log Y" value={violin.logY} onChange={(logY) => setPlot('violin', { logY })} />
             </>
           )}
@@ -413,15 +419,13 @@ function AnalyticsPlots() {
             <PropertySelect label="A" value={ternary.a} onChange={(a) => setPlot('ternary', { a })} options={numericColumns} />
             <PropertySelect label="B" value={ternary.b} onChange={(b) => setPlot('ternary', { b })} options={numericColumns} />
             <PropertySelect label="C" value={ternary.c} onChange={(c) => setPlot('ternary', { c })} options={numericColumns} />
-            {hasCategoricals && (
-              <PropertySelect
-                label="Colour by"
-                value={ternary.colorBy}
-                onChange={(colorBy) => setPlot('ternary', { colorBy })}
-                options={categoricalColumns}
-                includeBlank
-              />
-            )}
+            <PropertySelect
+              label="Colour by"
+              value={ternary.colorBy}
+              onChange={(colorBy) => setPlot('ternary', { colorBy })}
+              options={categoricalColumns}
+              includeBlank
+            />
           </>
         )}
         data={ternaryConfig.data}
