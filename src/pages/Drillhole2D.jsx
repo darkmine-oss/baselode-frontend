@@ -2,7 +2,7 @@
  * Copyright (C) 2026 Darkmine Pty Ltd
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { createPortal } from 'react-dom';
 import {
@@ -14,6 +14,7 @@ import {
 import './Drillhole2D.css';
 import { useProjectData } from '../context/ProjectDataContext.jsx';
 import { useTheme } from '../context/ThemeContext.jsx';
+import { useStripLogSelections } from '../context/StripLogSelectionsContext.jsx';
 
 const PLOT_COUNT_KEY = 'baselode-viewer-strip-log-plot-count-v1';
 const PLOT_COUNT_MIN = 1;
@@ -38,6 +39,11 @@ function Drillhole2D() {
   const location = useLocation();
   const { theme } = useTheme();
   const { collars, combinedHoles, status } = useProjectData();
+  const {
+    selections: stripCache,
+    setAllConfigs: setStripCache,
+    setPanelPatch: setStripPanel,
+  } = useStripLogSelections();
 
   // Both baselode templates (dark and the unnamed default used when no
   // template is passed) set hovermode: 'x unified', which makes categorical
@@ -85,6 +91,37 @@ function Drillhole2D() {
     plotCount,
   });
 
+  // Enrich the hook's flat hole list with a `project` field so the
+  // TracePlot's `group+hole` selector can offer a project filter.  An
+  // empty / missing collar.project resolves to '' — the TracePlot
+  // renders it as a "No projects" option and the hole list stays
+  // unfiltered, which is the "no project code → just (none)" case.
+  const holeToProject = useMemo(() => {
+    const map = new Map();
+    for (const collar of collars || []) {
+      if (!collar?.holeId) continue;
+      const project = (collar.project ?? '').toString().trim();
+      if (project) map.set(collar.holeId, project);
+    }
+    return map;
+  }, [collars]);
+
+  const holeOptionsWithProject = useMemo(
+    () => labeledHoleOptions.map((option) => ({
+      ...option,
+      project: holeToProject.get(option.holeId) || '',
+    })),
+    [labeledHoleOptions, holeToProject],
+  );
+
+  const projectOptions = useMemo(() => {
+    const seen = new Set();
+    for (const option of holeOptionsWithProject) {
+      if (option.project) seen.add(option.project);
+    }
+    return [...seen].sort((a, b) => a.localeCompare(b));
+  }, [holeOptionsWithProject]);
+
   useEffect(() => {
     const holeIdFromNav = location.state?.holeId;
     if (holeIdFromNav) {
@@ -94,6 +131,44 @@ function Drillhole2D() {
       }
     }
   }, [location.state, holeCount, setError, setFocusedHoleId]);
+
+  // Restore cached per-panel configs once the hook has primed its
+  // defaults.  Only runs once per mount — subsequent panel edits flow
+  // through the mirror effect below into the cache, not the other way.
+  // Skipped entirely if the route was entered via "Open strip log"
+  // from another page (the nav-supplied focused hole takes priority).
+  const restoredRef = useRef(false);
+  useEffect(() => {
+    if (restoredRef.current) return;
+    if (location.state?.holeId) { restoredRef.current = true; return; }
+    if (!traceGraphs.length) return;
+    if (!traceGraphs.every((graph) => graph?.config?.holeId)) return;
+    (stripCache.configs || []).forEach((cached, idx) => {
+      if (!cached || idx >= traceGraphs.length) return;
+      const current = traceGraphs[idx]?.config || {};
+      const patch = {};
+      if (cached.holeId && cached.holeId !== current.holeId) patch.holeId = cached.holeId;
+      if (cached.property && cached.property !== current.property) patch.property = cached.property;
+      if (cached.chartType && cached.chartType !== current.chartType) patch.chartType = cached.chartType;
+      if (Object.keys(patch).length) handleConfigChange(idx, patch);
+    });
+    restoredRef.current = true;
+  }, [traceGraphs, stripCache.configs, location.state, handleConfigChange]);
+
+  // Mirror live per-panel configs into the cache so they survive a
+  // navigation away and back.  Gated on `restoredRef` so the very
+  // first render — before the restore effect has applied cached
+  // values — doesn't overwrite the cache with the hook's defaults.
+  useEffect(() => {
+    if (!restoredRef.current) return;
+    if (!traceGraphs.length) return;
+    const next = traceGraphs.map((graph) => {
+      const config = graph?.config;
+      if (!config) return null;
+      return { holeId: config.holeId, property: config.property, chartType: config.chartType };
+    });
+    setStripCache(next);
+  }, [traceGraphs, setStripCache]);
 
   const dataSourceTarget = typeof document !== 'undefined' ? document.getElementById('data-source-slot') : null;
   const dataSourceInfo = (
@@ -137,17 +212,40 @@ function Drillhole2D() {
         </div>
       ) : (
         <div className="plots-grid">
-          {Array.from({ length: plotCount }).map((_, idx) => (
-            <TracePlot
-              key={idx}
-              config={traceGraphs[idx]?.config || { holeId: '', property: '', chartType: 'markers+line' }}
-              graph={traceGraphs[idx]}
-              holeOptions={labeledHoleOptions}
-              propertyOptions={traceGraphs[idx]?.propertyOptions || []}
-              onConfigChange={(patch) => handleConfigChange(idx, patch)}
-              template={template}
-            />
-          ))}
+          {Array.from({ length: plotCount }).map((_, idx) => {
+            const panelCache = stripCache.configs[idx] || {};
+            const projectId = panelCache.projectId || '';
+            return (
+              <TracePlot
+                key={idx}
+                config={traceGraphs[idx]?.config || { holeId: '', property: '', chartType: 'markers+line' }}
+                graph={traceGraphs[idx]}
+                holeOptions={holeOptionsWithProject}
+                holeSelector={{
+                  kind: 'group+hole',
+                  groupBy: 'project',
+                  groupLabel: 'Project',
+                  groupValue: projectId,
+                  groupOptions: projectOptions,
+                  onGroupChange: (nextProject) => {
+                    setStripPanel(idx, { projectId: nextProject });
+                    // If the panel's current hole isn't in the picked
+                    // project, clear it so the user re-picks one that
+                    // is — otherwise the hole dropdown shows empty
+                    // and the chart still plots the old hole.
+                    const current = traceGraphs[idx]?.config?.holeId;
+                    if (nextProject && current) {
+                      const hole = holeOptionsWithProject.find((h) => h.holeId === current);
+                      if (hole?.project !== nextProject) handleConfigChange(idx, { holeId: '' });
+                    }
+                  },
+                }}
+                propertyOptions={traceGraphs[idx]?.propertyOptions || []}
+                onConfigChange={(patch) => handleConfigChange(idx, patch)}
+                template={template}
+              />
+            );
+          })}
         </div>
       )}
       {dataSourceTarget && createPortal(dataSourceInfo, dataSourceTarget)}

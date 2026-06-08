@@ -13,6 +13,7 @@ import {
   HOLE_ID,
 } from 'baselode';
 import { isTauri, pickProjectFolder, readProjectFolder, readProjectFromFileList } from '../lib/projectIo.js';
+import { parseSurfaceSamples } from '../lib/surfaceSamplesIo.js';
 
 const LAST_PROJECT_KEY = 'baselode-viewer-last-project';
 
@@ -25,6 +26,7 @@ const initial = {
   combinedHoles: [],
   structureRows: null,
   geologyHoles: [],
+  surfaceSamples: [],
   rawCsv: { precomputed: null, survey: null },
   formats: {},
   openProject: async () => {},
@@ -38,7 +40,7 @@ export function ProjectDataProvider({ children }) {
   const [state, setState] = useState(initial);
 
   const closeProject = useCallback(() => {
-    setState((s) => ({ ...s, status: 'idle', folderPath: '', errors: {}, collars: [], assayState: null, combinedHoles: [], structureRows: null, geologyHoles: [], rawCsv: { precomputed: null, survey: null }, formats: {} }));
+    setState((s) => ({ ...s, status: 'idle', folderPath: '', errors: {}, collars: [], assayState: null, combinedHoles: [], structureRows: null, geologyHoles: [], surfaceSamples: [], rawCsv: { precomputed: null, survey: null }, formats: {} }));
     try {
       localStorage.removeItem(LAST_PROJECT_KEY);
     } catch (e) {
@@ -60,6 +62,7 @@ export function ProjectDataProvider({ children }) {
         combinedHoles: parsed.combinedHoles,
         structureRows: parsed.structureRows,
         geologyHoles: parsed.geologyHoles,
+        surfaceSamples: parsed.surfaceSamples,
         rawCsv: { precomputed: read.files.precomputed_desurveyed || null, survey: read.files.survey || null },
         formats: read.formats || {},
       }));
@@ -180,7 +183,28 @@ async function parseProject(read) {
     }
   }
 
-  return { collars, assayState, combinedHoles, structureRows, geologyHoles, errors };
+  // Surface samples — out-of-hole sample points (rock chip / stream /
+  // soil / outcrop) keyed by sample_id rather than hole_id.  Used by the
+  // Analytics page.
+  let surfaceSamples = [];
+  if (files.surface_samples) {
+    try {
+      const parsed = parseSurfaceSamples(files.surface_samples);
+      surfaceSamples = parsed?.rows || [];
+    } catch (e) {
+      errors.surface_samples = e?.message || String(e);
+    }
+  }
+
+  return {
+    collars,
+    assayState,
+    combinedHoles,
+    structureRows,
+    geologyHoles,
+    surfaceSamples,
+    errors,
+  };
 }
 
 function parseCollars(csvText) {
@@ -196,7 +220,12 @@ function parseCollars(csvText) {
       lat,
       lng,
       holeId,
-      project: (s.project_id || s.dataset || 'Unknown').toString().trim(),
+      // Leave empty when the source has no project_id / dataset
+      // column.  Consumers that want a display fallback use `|| '—'`
+      // or `|| 'N/A'` locally; the strip-log Project picker treats
+      // an empty value as "no project filter" and surfaces a "No
+      // projects" disabled option when every collar is empty.
+      project: (s.project_id || s.dataset || '').toString().trim(),
     }];
   });
 }

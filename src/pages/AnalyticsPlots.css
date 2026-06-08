@@ -1,0 +1,202 @@
+/*
+ * Copyright (C) 2026 Darkmine Pty Ltd
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ *
+ * Styled against the app design tokens (src/styles/{dark,light}.css).
+ * Dark/light switching is handled by the root `.dark` class on <html>,
+ * so this file has no theme-specific overrides — every value resolves
+ * through the token vars.
+ */
+
+.analytics-page {
+  padding: 16px 24px 32px;
+  max-width: 1400px;
+  margin: 0 auto;
+  background: var(--color-background);
+  color: var(--color-on-surface);
+}
+
+.analytics-page__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 16px;
+}
+
+.analytics-page__header h1 {
+  margin: 0 0 6px;
+  font-family: var(--font-display);
+  font-size: var(--type-headline-md-size);
+  font-weight: var(--type-headline-md-weight);
+  line-height: var(--type-headline-md-line);
+  letter-spacing: var(--type-headline-md-tracking);
+  color: var(--color-on-surface);
+}
+
+.analytics-page__header p {
+  margin: 0;
+  color: var(--color-on-surface-variant);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.analytics-page__header code {
+  background: var(--color-surface-container-high);
+  color: var(--color-on-surface);
+  padding: 0 4px;
+  font-family: var(--font-sans);
+  font-size: 0.85em;
+}
+
+.analytics-status {
+  padding: 12px 14px;
+  background: var(--color-surface-container-low);
+  border: var(--border-hairline) solid var(--color-outline-variant);
+  color: var(--color-on-surface-variant);
+  font-size: 13px;
+}
+
+.analytics-status a {
+  color: hsl(var(--accent));
+  text-decoration: underline;
+}
+
+.source-toggle {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+
+.source-toggle__btn {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  align-items: flex-start;
+  padding: 8px 14px;
+  border: var(--border-hairline) solid var(--color-outline-variant);
+  background: var(--color-surface-container-low);
+  color: var(--color-on-surface);
+  font-family: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 120ms ease, color 120ms ease, border-color 120ms ease;
+}
+
+.source-toggle__btn:hover {
+  background: var(--color-surface-container-high);
+  border-color: var(--color-outline);
+}
+
+.source-toggle__btn--active {
+  background: hsl(var(--accent));
+  color: hsl(var(--accent-foreground));
+  border-color: hsl(var(--accent));
+}
+
+.source-toggle__count {
+  font-size: 11px;
+  color: var(--color-on-surface-variant);
+  letter-spacing: 0.04em;
+}
+
+.source-toggle__btn--active .source-toggle__count {
+  color: hsl(var(--accent-foreground));
+  opacity: 0.85;
+}
+
+.prop-select {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: var(--color-on-surface-variant);
+}
+
+.prop-select select {
+  padding: 4px 8px;
+  border: var(--border-hairline) solid var(--color-outline-variant);
+  background: var(--color-surface-container-low);
+  color: var(--color-on-surface);
+  font-family: inherit;
+  font-size: 13px;
+  min-width: 120px;
+}
+
+.prop-select select:focus {
+  outline: none;
+  border-color: hsl(var(--accent));
+}
+
+.plot-panel {
+  background: var(--color-surface-container);
+  border: var(--border-hairline) solid var(--color-outline-variant);
+  padding: 16px;
+  margin-bottom: 18px;
+}
+
+.plot-panel__header {
+  margin-bottom: 8px;
+}
+
+.plot-panel__header h2 {
+  margin: 0 0 2px;
+  font-family: var(--font-display);
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--color-on-surface);
+}
+
+.plot-panel__header p {
+  margin: 0;
+  font-size: 12px;
+  color: var(--color-on-surface-variant);
+}
+
+.plot-panel__controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  align-items: end;
+  padding: 8px 10px;
+  margin-bottom: 10px;
+  background: var(--color-surface-container-low);
+  border: var(--border-hairline) solid var(--color-outline-variant);
+}
+
+.plot-panel__chart {
+  width: 100%;
+}
+
+.log-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--color-on-surface-variant);
+  padding: 4px 8px;
+  border: var(--border-hairline) solid var(--color-outline-variant);
+  background: var(--color-surface-container-low);
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+}
+
+.log-toggle input[type='checkbox'] {
+  margin: 0;
+  cursor: pointer;
+  accent-color: hsl(var(--accent));
+}
+
+.analytics-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+  gap: 18px;
+  margin-bottom: 18px;
+}
+
+.analytics-grid .plot-panel {
+  margin-bottom: 0;
+}

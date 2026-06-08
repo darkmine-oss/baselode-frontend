@@ -23,6 +23,8 @@ function DataInstructions() {
 ├── assays.{parquet,csv}                   (drives "colour by" in 3D + Strip Log)
 ├── geology.{parquet,csv}                  (categorical colour-by)
 ├── structure.{parquet,csv}                (structural discs in 3D)
+├── surface_samples.{parquet,csv}          (out-of-hole sample points
+│                                              consumed by the Analytics view)
 └── precomputed_desurveyed.{parquet,csv}   (optional — skip live desurvey)`}</pre>
         <p>
           Only <code>collars</code> is required. Missing files are skipped silently; the
@@ -69,6 +71,11 @@ function DataInstructions() {
               <td><code>structure</code></td>
               <td><code>hole_id</code>, <code>depth</code>, <code>dip</code>, <code>azimuth</code></td>
               <td><code>alpha</code>, <code>beta</code>, <code>strike</code></td>
+            </tr>
+            <tr>
+              <td><code>surface_samples</code></td>
+              <td><code>sample_id</code>, <code>surface_sample_type</code> + either (<code>latitude</code>, <code>longitude</code>) or (<code>easting</code>, <code>northing</code>, <code>crs</code>)</td>
+              <td><code>elevation</code>, <code>datasource_surface_sample_id</code>, <code>report_number</code>, <code>project_id</code>, plus any analyte / metadata columns (e.g. <code>Au_PPM</code>, <code>Cu_PCT</code>)</td>
             </tr>
             <tr>
               <td><code>precomputed_desurveyed</code></td>

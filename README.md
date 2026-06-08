@@ -1,6 +1,6 @@
 # Baselode Viewer
 
-Desktop drilling-data viewer by **Darkmine**, built as a React/Vite app wrapped
+Desktop drilling-data viewer by **[Darkmine](https://darkmine.ai)**, built as a React/Vite app wrapped
 in [Tauri v2](https://v2.tauri.app/) for distribution as a native Windows `.exe`
 (and macOS / Linux binaries). The UI is a lightweight wrapper around the
 [`baselode`](https://www.npmjs.com/package/baselode) library — open a project
@@ -12,8 +12,19 @@ folder of CSVs and explore the holes on a map, in 3D, and as strip logs.
   a per-hole quick-look chart.
 - **3D Scene** — desurveyed drillhole traces with optional structural discs,
   geology-categorical and assay-numeric colouring, and depth strip logs.
-- **Strip Log** — 1×4 grid of independent depth plots (Plotly), one per
-  selected hole/property.
+- **Strip Log** — N-up grid of independent depth plots (Plotly), one per
+  panel.  Each panel has its own Project / Hole / Property /
+  Chart-type dropdowns; the Project filter narrows the hole list to a
+  single `project_id`, and is automatically hidden as "No projects"
+  when the data carries no project column.  Per-panel picks persist
+  across page navigation, so opening the 3D Scene and coming back
+  keeps the grid configured.
+- **Analytics** — scatter / histogram / box / violin / ternary plots over
+  the loaded drillhole assays or surface samples, with categorical
+  colouring (lithology, sample type, etc.).  Each plot has its own
+  property / group-by / log-axis controls, and your picks persist across
+  page navigation so switching to the 3D scene and back doesn't lose
+  what you'd set up.
 
 The Drillhole Block Model and Polygon Grade Blocks viewers from the upstream
 demo are intentionally **out of scope** for this app.
@@ -31,12 +42,17 @@ my-project/
 ├── assays.{parquet,csv}                   (optional — drives the colour-by menu)
 ├── geology.{parquet,csv}                  (optional — categorical colour-by)
 ├── structure.{parquet,csv}                (optional — structural discs in 3D)
+├── surface_samples.{parquet,csv}          (optional — out-of-hole sample points
+│                                              consumed by the Analytics view)
 └── precomputed_desurveyed.{parquet,csv}   (optional — bypasses live desurvey)
 ```
 
 Only `collars` is required. If both formats are present for a file the
 **Parquet copy wins** (smaller, faster to parse). Missing files are skipped
 silently and the affected viewer falls back to a placeholder.
+
+Parquet files written by pyarrow / duckdb / pandas with any of SNAPPY,
+GZIP, ZSTD, BROTLI or LZ4 compression are all supported.
 
 The desktop app is permitted to read only from your home directory and the
 common user-data roots (Desktop / Documents / Downloads / platform app-data).
@@ -56,6 +72,7 @@ loader does no remapping. Synonyms (e.g. `lat` for `latitude`, `md` for
 | `assays`      | `hole_id`, `from`, `to` | one or more analyte columns (e.g. `Au_PPM`, `Cu_PCT`) |
 | `geology`     | `hole_id`, `from`, `to` | `geology_code`, `geology_description`, plus any other intervaled attributes |
 | `structure`   | `hole_id`, `depth`, `dip`, `azimuth` | `alpha`, `beta`, `strike` |
+| `surface_samples` | `sample_id`, `surface_sample_type` + either (`latitude`, `longitude`) or (`easting`, `northing`, `crs`) | `elevation`, `datasource_surface_sample_id`, `report_number`, `project_id`, any analyte / metadata columns |
 | `precomputed_desurveyed` | `hole_id`, `x`, `y`, `z`, `md` | — (already-projected, scene-frame XYZ) |
 
 `hole_id` is the join key across files — use the same string everywhere.
@@ -134,11 +151,6 @@ npm run tauri:build
 Outputs `.msi` and `.exe` (NSIS) installers under
 `src-tauri/target/release/bundle/`. Cross-building Windows artefacts from
 macOS/Linux requires `cargo-xwin` and the Windows SDK; see the Tauri docs.
-
-## Branding
-
-App icons live in `src-tauri/icons/`. Drop a 1024×1024 source PNG and run
-`npm run tauri icon path/to/source.png` to regenerate all platform variants.
 
 ## Releasing
 
