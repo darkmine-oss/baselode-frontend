@@ -7,6 +7,7 @@ import { ZoomProvider } from '../context/ZoomContext.jsx';
 import { ProjectDataProvider } from '../context/ProjectDataContext.jsx';
 import { ThemeProvider } from '../context/ThemeContext.jsx';
 import { AnalyticsSelectionsProvider } from '../context/AnalyticsSelectionsContext.jsx';
+import { StripLogSelectionsProvider } from '../context/StripLogSelectionsContext.jsx';
 
 function Layout({ children }) {
   return (
@@ -14,10 +15,12 @@ function Layout({ children }) {
       <ZoomProvider>
         <ProjectDataProvider>
           <AnalyticsSelectionsProvider>
-            <div className="app-container">
-              <Sidebar />
-              <main className="main-content">{children}</main>
-            </div>
+            <StripLogSelectionsProvider>
+              <div className="app-container">
+                <Sidebar />
+                <main className="main-content">{children}</main>
+              </div>
+            </StripLogSelectionsProvider>
           </AnalyticsSelectionsProvider>
         </ProjectDataProvider>
       </ZoomProvider>

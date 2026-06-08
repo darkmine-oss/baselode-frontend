@@ -1,0 +1,50 @@
+/*
+ * Copyright (C) 2026 Darkmine Pty Ltd
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ */
+import { createContext, useCallback, useContext, useMemo, useState } from 'react';
+
+// Persists per-panel strip-log config (holeId / property / chartType)
+// across route navigation so leaving the Strip Log page and coming
+// back doesn't reset what the user picked.
+
+const INITIAL = {
+  // Array of `{ holeId, property, chartType }` keyed by panel index.
+  // Sparse — index N exists only if that panel has been touched.
+  configs: [],
+};
+
+const StripLogSelectionsContext = createContext(null);
+
+export function StripLogSelectionsProvider({ children }) {
+  const [selections, setSelections] = useState(INITIAL);
+
+  // Replace the whole configs array (used when the page mirrors the
+  // hook's current trace graphs back into the cache).
+  const setAllConfigs = useCallback((configs) => {
+    setSelections((current) => ({ ...current, configs: configs || [] }));
+  }, []);
+
+  // Reset all panels — currently unused, exposed so a future "clear"
+  // affordance has a single entry point.
+  const reset = useCallback(() => setSelections(INITIAL), []);
+
+  const value = useMemo(
+    () => ({ selections, setAllConfigs, reset }),
+    [selections, setAllConfigs, reset],
+  );
+
+  return (
+    <StripLogSelectionsContext.Provider value={value}>
+      {children}
+    </StripLogSelectionsContext.Provider>
+  );
+}
+
+export function useStripLogSelections() {
+  const context = useContext(StripLogSelectionsContext);
+  if (!context) {
+    throw new Error('useStripLogSelections must be used within StripLogSelectionsProvider');
+  }
+  return context;
+}
