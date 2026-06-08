@@ -2,7 +2,7 @@
  * Copyright (C) 2026 Darkmine Pty Ltd
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import Plotly from 'plotly.js-dist-min';
 import {
@@ -221,7 +221,11 @@ function AnalyticsPlots() {
   }, [source, sources, setSource]);
 
   const activeSource = sources.find((entry) => entry.key === source) || sources[0];
-  const activeRows = activeSource?.rows || [];
+  // Memoise — without this `[]` is a new array every render, which
+  // would make numericColumns / categoricalColumns change identity
+  // on every render and re-fire the seed/colour effects in a loop
+  // whenever the page is in the "no plottable data" state.
+  const activeRows = useMemo(() => activeSource?.rows || [], [activeSource]);
 
   const numericColumns = useMemo(() => detectNumericColumns(activeRows), [activeRows]);
   const categoricalColumns = useMemo(() => detectCategoricalColumns(activeRows), [activeRows]);

@@ -12,8 +12,13 @@ folder of CSVs and explore the holes on a map, in 3D, and as strip logs.
   a per-hole quick-look chart.
 - **3D Scene** — desurveyed drillhole traces with optional structural discs,
   geology-categorical and assay-numeric colouring, and depth strip logs.
-- **Strip Log** — 1×4 grid of independent depth plots (Plotly), one per
-  selected hole/property.
+- **Strip Log** — N-up grid of independent depth plots (Plotly), one per
+  panel.  Each panel has its own Project / Hole / Property /
+  Chart-type dropdowns; the Project filter narrows the hole list to a
+  single `project_id`, and is automatically hidden as "No projects"
+  when the data carries no project column.  Per-panel picks persist
+  across page navigation, so opening the 3D Scene and coming back
+  keeps the grid configured.
 - **Analytics** — scatter / histogram / box / violin / ternary plots over
   the loaded drillhole assays or surface samples, with categorical
   colouring (lithology, sample type, etc.).  Each plot has its own
@@ -45,6 +50,9 @@ my-project/
 Only `collars` is required. If both formats are present for a file the
 **Parquet copy wins** (smaller, faster to parse). Missing files are skipped
 silently and the affected viewer falls back to a placeholder.
+
+Parquet files written by pyarrow / duckdb / pandas with any of SNAPPY,
+GZIP, ZSTD, BROTLI or LZ4 compression are all supported.
 
 The desktop app is permitted to read only from your home directory and the
 common user-data roots (Desktop / Documents / Downloads / platform app-data).

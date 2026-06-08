@@ -220,7 +220,12 @@ function parseCollars(csvText) {
       lat,
       lng,
       holeId,
-      project: (s.project_id || s.dataset || 'Unknown').toString().trim(),
+      // Leave empty when the source has no project_id / dataset
+      // column.  Consumers that want a display fallback use `|| '—'`
+      // or `|| 'N/A'` locally; the strip-log Project picker treats
+      // an empty value as "no project filter" and surfaces a "No
+      // projects" disabled option when every collar is empty.
+      project: (s.project_id || s.dataset || '').toString().trim(),
     }];
   });
 }
