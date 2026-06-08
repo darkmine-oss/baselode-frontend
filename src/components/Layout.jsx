@@ -6,16 +6,19 @@ import Sidebar from './Sidebar.jsx';
 import { ZoomProvider } from '../context/ZoomContext.jsx';
 import { ProjectDataProvider } from '../context/ProjectDataContext.jsx';
 import { ThemeProvider } from '../context/ThemeContext.jsx';
+import { AnalyticsSelectionsProvider } from '../context/AnalyticsSelectionsContext.jsx';
 
 function Layout({ children }) {
   return (
     <ThemeProvider>
       <ZoomProvider>
         <ProjectDataProvider>
-          <div className="app-container">
-            <Sidebar />
-            <main className="main-content">{children}</main>
-          </div>
+          <AnalyticsSelectionsProvider>
+            <div className="app-container">
+              <Sidebar />
+              <main className="main-content">{children}</main>
+            </div>
+          </AnalyticsSelectionsProvider>
         </ProjectDataProvider>
       </ZoomProvider>
     </ThemeProvider>

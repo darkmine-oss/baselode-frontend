@@ -1,6 +1,6 @@
 # Baselode Viewer
 
-Desktop drilling-data viewer by **Darkmine**, built as a React/Vite app wrapped
+Desktop drilling-data viewer by **[Darkmine](https://darkmine.ai)**, built as a React/Vite app wrapped
 in [Tauri v2](https://v2.tauri.app/) for distribution as a native Windows `.exe`
 (and macOS / Linux binaries). The UI is a lightweight wrapper around the
 [`baselode`](https://www.npmjs.com/package/baselode) library — open a project
@@ -16,7 +16,10 @@ folder of CSVs and explore the holes on a map, in 3D, and as strip logs.
   selected hole/property.
 - **Analytics** — scatter / histogram / box / violin / ternary plots over
   the loaded drillhole assays or surface samples, with categorical
-  colouring (lithology, sample type, etc.).
+  colouring (lithology, sample type, etc.).  Each plot has its own
+  property / group-by / log-axis controls, and your picks persist across
+  page navigation so switching to the 3D scene and back doesn't lose
+  what you'd set up.
 
 The Drillhole Block Model and Polygon Grade Blocks viewers from the upstream
 demo are intentionally **out of scope** for this app.
@@ -140,11 +143,6 @@ npm run tauri:build
 Outputs `.msi` and `.exe` (NSIS) installers under
 `src-tauri/target/release/bundle/`. Cross-building Windows artefacts from
 macOS/Linux requires `cargo-xwin` and the Windows SDK; see the Tauri docs.
-
-## Branding
-
-App icons live in `src-tauri/icons/`. Drop a 1024×1024 source PNG and run
-`npm run tauri icon path/to/source.png` to regenerate all platform variants.
 
 ## Releasing
 

@@ -17,6 +17,7 @@ import {
 } from 'baselode';
 import { useProjectData } from '../context/ProjectDataContext.jsx';
 import { useTheme } from '../context/ThemeContext.jsx';
+import { useAnalyticsSelections } from '../context/AnalyticsSelectionsContext.jsx';
 import './AnalyticsPlots.css';
 
 // Columns that always describe row geometry / source rather than
@@ -178,6 +179,11 @@ function AnalyticsPlots() {
   const { theme } = useTheme();
   const useDarkTemplate = theme === 'dark';
 
+  // Picks live in a layout-level context so navigating away and back
+  // doesn't reset what the user has chosen.
+  const { selections, setSource, setPlot, resetPlotPicks } = useAnalyticsSelections();
+  const { source, scatter, histogram, box, violin, ternary } = selections;
+
   const assayRows = useMemo(() => flattenAssayRows(combinedHoles), [combinedHoles]);
   const surfaceRows = useMemo(() => surfaceSamples || [], [surfaceSamples]);
 
@@ -194,10 +200,9 @@ function AnalyticsPlots() {
     return out;
   }, [assayRows, surfaceRows]);
 
-  const [source, setSource] = useState('');
   useEffect(() => {
     if (!source && sources.length) setSource(sources[0].key);
-  }, [source, sources]);
+  }, [source, sources, setSource]);
 
   const activeSource = sources.find((entry) => entry.key === source) || sources[0];
   const activeRows = activeSource?.rows || [];
@@ -215,107 +220,71 @@ function AnalyticsPlots() {
     return categoricalColumns[0];
   }, [categoricalColumns]);
 
-  // Per-plot state — scatter
-  const [scatterX, setScatterX] = useState('');
-  const [scatterY, setScatterY] = useState('');
-  const [scatterColorBy, setScatterColorBy] = useState('');
-  const [scatterLogX, setScatterLogX] = useState(true);
-  const [scatterLogY, setScatterLogY] = useState(true);
-
-  // Per-plot state — histogram (Y-only log; X is the binned analyte)
-  const [histProp, setHistProp] = useState('');
-  const [histGroupBy, setHistGroupBy] = useState('');
-  const [histLogY, setHistLogY] = useState(true);
-  const [histBarmode, setHistBarmode] = useState('overlay');
-
-  // Per-plot state — box / violin (value axis is Y, X is the categorical group)
-  const [boxProp, setBoxProp] = useState('');
-  const [boxGroupBy, setBoxGroupBy] = useState('');
-  const [boxLogY, setBoxLogY] = useState(true);
-  const [violinProp, setViolinProp] = useState('');
-  const [violinGroupBy, setViolinGroupBy] = useState('');
-  const [violinLogY, setViolinLogY] = useState(true);
-
-  // Per-plot state — ternary (no log — components are percentages)
-  const [aProp, setAProp] = useState('');
-  const [bProp, setBProp] = useState('');
-  const [cProp, setCProp] = useState('');
-  const [ternaryColorBy, setTernaryColorBy] = useState('');
-
   // Reset prop selections when the source changes — the new source may
   // not carry the previously-picked columns.
   useEffect(() => {
-    setScatterX(''); setScatterY(''); setScatterColorBy('');
-    setHistProp(''); setHistGroupBy('');
-    setBoxProp(''); setBoxGroupBy('');
-    setViolinProp(''); setViolinGroupBy('');
-    setAProp(''); setBProp(''); setCProp(''); setTernaryColorBy('');
-  }, [source]);
+    resetPlotPicks();
+  }, [source, resetPlotPicks]);
 
-  // Seed per-plot column picks once columns are known.  Subsequent
-  // column changes don't overwrite a user's explicit pick.
+  // Seed per-plot column picks once columns are known.  Functional form
+  // only fills empties, so we never overwrite a user's explicit pick.
   useEffect(() => {
     if (!numericColumns.length) return;
     const get = (idx) => numericColumns[Math.min(idx, numericColumns.length - 1)];
-    setScatterX((current) => current || get(0));
-    setScatterY((current) => current || get(1));
-    setHistProp((current) => current || get(0));
-    setBoxProp((current) => current || get(0));
-    setViolinProp((current) => current || get(0));
-    setAProp((current) => current || get(0));
-    setBProp((current) => current || get(1));
-    setCProp((current) => current || get(2));
-  }, [numericColumns]);
+    setPlot('scatter', (current) => ({ x: current.x || get(0), y: current.y || get(1) }));
+    setPlot('histogram', (current) => ({ prop: current.prop || get(0) }));
+    setPlot('box', (current) => ({ prop: current.prop || get(0) }));
+    setPlot('violin', (current) => ({ prop: current.prop || get(0) }));
+    setPlot('ternary', (current) => ({
+      a: current.a || get(0),
+      b: current.b || get(1),
+      c: current.c || get(2),
+    }));
+  }, [numericColumns, setPlot]);
 
   useEffect(() => {
     if (!defaultColorBy) return;
-    setScatterColorBy((current) => current || defaultColorBy);
-    setHistGroupBy((current) => current || defaultColorBy);
-    setBoxGroupBy((current) => current || defaultColorBy);
-    setViolinGroupBy((current) => current || defaultColorBy);
-    setTernaryColorBy((current) => current || defaultColorBy);
-  }, [defaultColorBy]);
+    setPlot('scatter', (current) => ({ colorBy: current.colorBy || defaultColorBy }));
+    setPlot('histogram', (current) => ({ groupBy: current.groupBy || defaultColorBy }));
+    setPlot('box', (current) => ({ groupBy: current.groupBy || defaultColorBy }));
+    setPlot('violin', (current) => ({ groupBy: current.groupBy || defaultColorBy }));
+    setPlot('ternary', (current) => ({ colorBy: current.colorBy || defaultColorBy }));
+  }, [defaultColorBy, setPlot]);
 
   const template = useDarkTemplate ? BASELODE_DARK_TEMPLATE : BASELODE_TEMPLATE;
   const colourMap = categoricalColumns.some((column) => column.toLowerCase().includes('litho'))
     ? LITHOLOGY_COLOURS
     : null;
 
-  const scatter = useMemo(() => buildScatterPlotConfig(activeRows, {
-    xProp: scatterX, yProp: scatterY, colorBy: scatterColorBy, colourMap,
-    log: { x: scatterLogX, y: scatterLogY }, template,
-  }), [activeRows, scatterX, scatterY, scatterColorBy, scatterLogX, scatterLogY, colourMap, template]);
+  const scatterConfig = useMemo(() => buildScatterPlotConfig(activeRows, {
+    xProp: scatter.x, yProp: scatter.y, colorBy: scatter.colorBy, colourMap,
+    log: { x: scatter.logX, y: scatter.logY }, template,
+  }), [activeRows, scatter, colourMap, template]);
 
-  const histogram = useMemo(() => buildHistogramPlotConfig(activeRows, {
-    prop: histProp, groupBy: histGroupBy, colourMap,
-    log: histLogY, barmode: histBarmode, template,
-  }), [activeRows, histProp, histGroupBy, histLogY, histBarmode, colourMap, template]);
+  const histogramConfig = useMemo(() => buildHistogramPlotConfig(activeRows, {
+    prop: histogram.prop, groupBy: histogram.groupBy, colourMap,
+    log: histogram.logY, barmode: histogram.barmode, template,
+  }), [activeRows, histogram, colourMap, template]);
 
-  const box = useMemo(() => buildBoxPlotConfig(activeRows, {
-    prop: boxProp, groupBy: boxGroupBy, colourMap, log: boxLogY, template,
-  }), [activeRows, boxProp, boxGroupBy, boxLogY, colourMap, template]);
+  const boxConfig = useMemo(() => buildBoxPlotConfig(activeRows, {
+    prop: box.prop, groupBy: box.groupBy, colourMap, log: box.logY, template,
+  }), [activeRows, box, colourMap, template]);
 
-  const violin = useMemo(() => buildViolinPlotConfig(activeRows, {
-    prop: violinProp, groupBy: violinGroupBy, colourMap, log: violinLogY, template,
-  }), [activeRows, violinProp, violinGroupBy, violinLogY, colourMap, template]);
+  const violinConfig = useMemo(() => buildViolinPlotConfig(activeRows, {
+    prop: violin.prop, groupBy: violin.groupBy, colourMap, log: violin.logY, template,
+  }), [activeRows, violin, colourMap, template]);
 
-  const ternary = useMemo(() => buildTernaryPlotConfig(activeRows, {
-    aProp, bProp, cProp, colorBy: ternaryColorBy, colourMap, template,
-  }), [activeRows, aProp, bProp, cProp, ternaryColorBy, colourMap, template]);
+  const ternaryConfig = useMemo(() => buildTernaryPlotConfig(activeRows, {
+    aProp: ternary.a, bProp: ternary.b, cProp: ternary.c, colorBy: ternary.colorBy, colourMap, template,
+  }), [activeRows, ternary, colourMap, template]);
 
   const hasCategoricals = categoricalColumns.length > 0;
 
   if (status !== 'ready') {
     return (
       <div className="analytics-page">
-        <header className="analytics-page__header">
-          <div>
-            <h1>Analytics Plots</h1>
-            <p>Open a project folder from the sidebar to load assay or surface sample data, then return here.</p>
-          </div>
-        </header>
         <p className="analytics-status">
-          No project loaded.{' '}
+          No project loaded.  Open a project folder from the sidebar to load assay or surface sample data, then return here.{' '}
           <Link to="/data-instructions">See the project format docs →</Link>
         </p>
       </div>
@@ -325,14 +294,9 @@ function AnalyticsPlots() {
   if (!sources.length) {
     return (
       <div className="analytics-page">
-        <header className="analytics-page__header">
-          <div>
-            <h1>Analytics Plots</h1>
-            <p>The loaded project doesn't carry plottable data.</p>
-          </div>
-        </header>
         <p className="analytics-status">
-          Add an <code>assays.csv</code> / <code>assays.parquet</code> or a{' '}
+          The loaded project doesn't carry plottable data.  Add an{' '}
+          <code>assays.csv</code> / <code>assays.parquet</code> or a{' '}
           <code>surface_samples.csv</code> / <code>surface_samples.parquet</code>{' '}
           to your project folder to enable this page.{' '}
           <Link to="/data-instructions">Project format →</Link>
@@ -343,20 +307,6 @@ function AnalyticsPlots() {
 
   return (
     <div className="analytics-page">
-      <header className="analytics-page__header">
-        <div>
-          <h1>Analytics Plots</h1>
-          <p>
-            Analyte-vs-analyte exploration on the loaded project.  Plot primitives from{' '}
-            <code>baselode</code>: <code>buildScatterPlotConfig</code>,{' '}
-            <code>buildHistogramPlotConfig</code>,{' '}
-            <code>buildBoxPlotConfig</code>,{' '}
-            <code>buildViolinPlotConfig</code>,{' '}
-            <code>buildTernaryPlotConfig</code>.
-          </p>
-        </div>
-      </header>
-
       <SourceToggle source={source} setSource={setSource} options={sources} />
 
       <PlotPanel
@@ -364,23 +314,23 @@ function AnalyticsPlots() {
         description="Analyte vs analyte with optional categorical colour-by."
         controls={(
           <>
-            <PropertySelect label="X" value={scatterX} onChange={setScatterX} options={numericColumns} />
-            <PropertySelect label="Y" value={scatterY} onChange={setScatterY} options={numericColumns} />
+            <PropertySelect label="X" value={scatter.x} onChange={(x) => setPlot('scatter', { x })} options={numericColumns} />
+            <PropertySelect label="Y" value={scatter.y} onChange={(y) => setPlot('scatter', { y })} options={numericColumns} />
             {hasCategoricals && (
               <PropertySelect
                 label="Colour by"
-                value={scatterColorBy}
-                onChange={setScatterColorBy}
+                value={scatter.colorBy}
+                onChange={(colorBy) => setPlot('scatter', { colorBy })}
                 options={categoricalColumns}
                 includeBlank
               />
             )}
-            <LogToggle label="log X" value={scatterLogX} onChange={setScatterLogX} />
-            <LogToggle label="log Y" value={scatterLogY} onChange={setScatterLogY} />
+            <LogToggle label="log X" value={scatter.logX} onChange={(logX) => setPlot('scatter', { logX })} />
+            <LogToggle label="log Y" value={scatter.logY} onChange={(logY) => setPlot('scatter', { logY })} />
           </>
         )}
-        data={scatter.data}
-        layout={scatter.layout}
+        data={scatterConfig.data}
+        layout={scatterConfig.layout}
       />
 
       <PlotPanel
@@ -388,24 +338,24 @@ function AnalyticsPlots() {
         description="Distribution per group overlaid."
         controls={(
           <>
-            <PropertySelect label="Property" value={histProp} onChange={setHistProp} options={numericColumns} />
+            <PropertySelect label="Property" value={histogram.prop} onChange={(prop) => setPlot('histogram', { prop })} options={numericColumns} />
             {hasCategoricals && (
               <PropertySelect
                 label="Group by"
-                value={histGroupBy}
-                onChange={setHistGroupBy}
+                value={histogram.groupBy}
+                onChange={(groupBy) => setPlot('histogram', { groupBy })}
                 options={categoricalColumns}
                 includeBlank
               />
             )}
-            <LogToggle label="log Y" value={histLogY} onChange={setHistLogY} />
-            {histGroupBy && (
-              <BarmodeSelect value={histBarmode} onChange={setHistBarmode} />
+            <LogToggle label="log Y" value={histogram.logY} onChange={(logY) => setPlot('histogram', { logY })} />
+            {histogram.groupBy && (
+              <BarmodeSelect value={histogram.barmode} onChange={(barmode) => setPlot('histogram', { barmode })} />
             )}
           </>
         )}
-        data={histogram.data}
-        layout={histogram.layout}
+        data={histogramConfig.data}
+        layout={histogramConfig.layout}
       />
 
       <div className="analytics-grid">
@@ -414,21 +364,21 @@ function AnalyticsPlots() {
           description="Quartiles per group, outliers shown."
           controls={(
             <>
-              <PropertySelect label="Property" value={boxProp} onChange={setBoxProp} options={numericColumns} />
+              <PropertySelect label="Property" value={box.prop} onChange={(prop) => setPlot('box', { prop })} options={numericColumns} />
               {hasCategoricals && (
                 <PropertySelect
                   label="Group by"
-                  value={boxGroupBy}
-                  onChange={setBoxGroupBy}
+                  value={box.groupBy}
+                  onChange={(groupBy) => setPlot('box', { groupBy })}
                   options={categoricalColumns}
                   includeBlank
                 />
               )}
-              <LogToggle label="log Y" value={boxLogY} onChange={setBoxLogY} />
+              <LogToggle label="log Y" value={box.logY} onChange={(logY) => setPlot('box', { logY })} />
             </>
           )}
-          data={box.data}
-          layout={box.layout}
+          data={boxConfig.data}
+          layout={boxConfig.layout}
           height={360}
         />
         <PlotPanel
@@ -436,21 +386,21 @@ function AnalyticsPlots() {
           description="Distribution shape per group, inner box + mean line."
           controls={(
             <>
-              <PropertySelect label="Property" value={violinProp} onChange={setViolinProp} options={numericColumns} />
+              <PropertySelect label="Property" value={violin.prop} onChange={(prop) => setPlot('violin', { prop })} options={numericColumns} />
               {hasCategoricals && (
                 <PropertySelect
                   label="Group by"
-                  value={violinGroupBy}
-                  onChange={setViolinGroupBy}
+                  value={violin.groupBy}
+                  onChange={(groupBy) => setPlot('violin', { groupBy })}
                   options={categoricalColumns}
                   includeBlank
                 />
               )}
-              <LogToggle label="log Y" value={violinLogY} onChange={setViolinLogY} />
+              <LogToggle label="log Y" value={violin.logY} onChange={(logY) => setPlot('violin', { logY })} />
             </>
           )}
-          data={violin.data}
-          layout={violin.layout}
+          data={violinConfig.data}
+          layout={violinConfig.layout}
           height={360}
         />
       </div>
@@ -460,22 +410,22 @@ function AnalyticsPlots() {
         description="Three-component composition.  Plotly auto-normalises components to 100."
         controls={(
           <>
-            <PropertySelect label="A" value={aProp} onChange={setAProp} options={numericColumns} />
-            <PropertySelect label="B" value={bProp} onChange={setBProp} options={numericColumns} />
-            <PropertySelect label="C" value={cProp} onChange={setCProp} options={numericColumns} />
+            <PropertySelect label="A" value={ternary.a} onChange={(a) => setPlot('ternary', { a })} options={numericColumns} />
+            <PropertySelect label="B" value={ternary.b} onChange={(b) => setPlot('ternary', { b })} options={numericColumns} />
+            <PropertySelect label="C" value={ternary.c} onChange={(c) => setPlot('ternary', { c })} options={numericColumns} />
             {hasCategoricals && (
               <PropertySelect
                 label="Colour by"
-                value={ternaryColorBy}
-                onChange={setTernaryColorBy}
+                value={ternary.colorBy}
+                onChange={(colorBy) => setPlot('ternary', { colorBy })}
                 options={categoricalColumns}
                 includeBlank
               />
             )}
           </>
         )}
-        data={ternary.data}
-        layout={ternary.layout}
+        data={ternaryConfig.data}
+        layout={ternaryConfig.layout}
         height={480}
       />
     </div>
