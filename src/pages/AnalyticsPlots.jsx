@@ -119,11 +119,17 @@ function PlotPanel({ title, description, data, layout, height = 380 }) {
 }
 
 function PropertySelect({ label, value, onChange, options }) {
+  // Render the dropdown alphabetically (case-insensitive) so the list is
+  // scannable.  Upstream column ordering is preserved for default picking
+  // via frequency.
+  const sortedOptions = [...options].sort((a, b) =>
+    String(a).localeCompare(String(b), undefined, { sensitivity: 'base' })
+  );
   return (
     <label className="prop-select">
       <span>{label}</span>
       <select value={value} onChange={(event) => onChange(event.target.value)}>
-        {options.map((option) => (
+        {sortedOptions.map((option) => (
           <option key={option} value={option}>{option}</option>
         ))}
       </select>
