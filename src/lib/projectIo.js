@@ -179,10 +179,16 @@ export async function readProjectFromFileList(fileList) {
 
 async function parquetBytesToCsvText(bytes) {
   const { parquetReadObjects } = await import('hyparquet');
+  // hyparquet only ships SNAPPY + GZIP decompressors out of the box;
+  // pyarrow/duckdb-written files routinely use ZSTD / BROTLI / LZ4.
+  // `hyparquet-compressors` plugs the full set in via the `compressors`
+  // option — without it those files silently fail to read and the
+  // loader falls back to the (typically smaller) CSV next to them.
+  const { compressors } = await import('hyparquet-compressors');
   // hyparquet wants an ArrayBuffer-like with byteLength + slice.  A plain
   // ArrayBuffer satisfies that interface.
   const arrayBuffer = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
-  const rows = await parquetReadObjects({ file: arrayBuffer });
+  const rows = await parquetReadObjects({ file: arrayBuffer, compressors });
   if (!rows.length) return '';
   return Papa.unparse(rows.map(coerceRowValues));
 }

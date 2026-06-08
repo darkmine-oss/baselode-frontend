@@ -18,6 +18,7 @@
     "@tauri-apps/plugin-fs": "^2.0.2",
     "baselode": "^0.1.30",
     "hyparquet": "^1.25.8",
+    "hyparquet-compressors": "^1.1.1",
     "maplibre-gl": "^5.16.0",
     "papaparse": "^5.4.1",
     "plotly.js-dist-min": "^2.32.0",
