@@ -197,7 +197,7 @@ function AnalyticsPlots() {
 
   // Picks live in a layout-level context so navigating away and back
   // doesn't reset what the user has chosen.
-  const { selections, setSource, setPlot, resetPlotPicks } = useAnalyticsSelections();
+  const { selections, setSource, setPlot } = useAnalyticsSelections();
   const { source, scatter, histogram, box, violin, ternary } = selections;
 
   const assayRows = useMemo(() => flattenAssayRows(combinedHoles), [combinedHoles]);
@@ -236,36 +236,43 @@ function AnalyticsPlots() {
     return categoricalColumns[0];
   }, [categoricalColumns]);
 
-  // Reset prop selections when the source changes — the new source may
-  // not carry the previously-picked columns.
-  useEffect(() => {
-    resetPlotPicks();
-  }, [source, resetPlotPicks]);
-
-  // Seed per-plot column picks once columns are known.  Functional form
-  // only fills empties, so we never overwrite a user's explicit pick.
+  // Self-healing column picks: validate every per-plot column against
+  // the current `numericColumns` and replace stale or empty picks with
+  // a sensible default.  This runs in one effect so a source change
+  // can't race a separate reset effect (the previous incarnation
+  // wiped the seeded picks one render after seeding them, leaving
+  // the page stuck on empty dropdowns until the user touched one).
   useEffect(() => {
     if (!numericColumns.length) return;
+    const valid = new Set(numericColumns);
     const get = (idx) => numericColumns[Math.min(idx, numericColumns.length - 1)];
-    setPlot('scatter', (current) => ({ x: current.x || get(0), y: current.y || get(1) }));
-    setPlot('histogram', (current) => ({ prop: current.prop || get(0) }));
-    setPlot('box', (current) => ({ prop: current.prop || get(0) }));
-    setPlot('violin', (current) => ({ prop: current.prop || get(0) }));
+    const pick = (value, fallbackIdx) => (valid.has(value) ? value : get(fallbackIdx));
+    setPlot('scatter', (current) => ({
+      x: pick(current.x, 0),
+      y: pick(current.y, 1),
+    }));
+    setPlot('histogram', (current) => ({ prop: pick(current.prop, 0) }));
+    setPlot('box', (current) => ({ prop: pick(current.prop, 0) }));
+    setPlot('violin', (current) => ({ prop: pick(current.prop, 0) }));
     setPlot('ternary', (current) => ({
-      a: current.a || get(0),
-      b: current.b || get(1),
-      c: current.c || get(2),
+      a: pick(current.a, 0),
+      b: pick(current.b, 1),
+      c: pick(current.c, 2),
     }));
   }, [numericColumns, setPlot]);
 
+  // Colour-by picks: validate against the categorical column set.  An
+  // empty cache value falls through to `defaultColorBy`; a stale value
+  // (column no longer present) falls back to `defaultColorBy` too.
   useEffect(() => {
-    if (!defaultColorBy) return;
-    setPlot('scatter', (current) => ({ colorBy: current.colorBy || defaultColorBy }));
-    setPlot('histogram', (current) => ({ groupBy: current.groupBy || defaultColorBy }));
-    setPlot('box', (current) => ({ groupBy: current.groupBy || defaultColorBy }));
-    setPlot('violin', (current) => ({ groupBy: current.groupBy || defaultColorBy }));
-    setPlot('ternary', (current) => ({ colorBy: current.colorBy || defaultColorBy }));
-  }, [defaultColorBy, setPlot]);
+    const valid = new Set(categoricalColumns);
+    const pick = (value) => (valid.has(value) ? value : (defaultColorBy || ''));
+    setPlot('scatter', (current) => ({ colorBy: pick(current.colorBy) }));
+    setPlot('histogram', (current) => ({ groupBy: pick(current.groupBy) }));
+    setPlot('box', (current) => ({ groupBy: pick(current.groupBy) }));
+    setPlot('violin', (current) => ({ groupBy: pick(current.groupBy) }));
+    setPlot('ternary', (current) => ({ colorBy: pick(current.colorBy) }));
+  }, [categoricalColumns, defaultColorBy, setPlot]);
 
   const template = useDarkTemplate ? BASELODE_DARK_TEMPLATE : BASELODE_TEMPLATE;
   const colourMap = categoricalColumns.some((column) => column.toLowerCase().includes('litho'))
