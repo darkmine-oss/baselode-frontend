@@ -146,6 +146,43 @@
   margin-bottom: 18px;
 }
 
+.plot-panel__controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  align-items: end;
+  padding: 8px 10px;
+  margin-bottom: 10px;
+  background: rgba(148, 163, 184, 0.08);
+  border-radius: 6px;
+}
+
+.log-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.78rem;
+  color: var(--text-muted, #475569);
+  padding: 4px 8px;
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  border-radius: 4px;
+  background: white;
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+}
+
+.log-toggle input[type='checkbox'] {
+  margin: 0;
+  cursor: pointer;
+}
+
+.analytics-page--dark .log-toggle {
+  background: #24252a;
+  color: #94a3b8;
+  border-color: #34353b;
+}
+
 .plot-panel__header {
   margin-bottom: 8px;
 }

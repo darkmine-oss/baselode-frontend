@@ -94,7 +94,7 @@ function detectCategoricalColumns(rows) {
     .map(([key]) => key);
 }
 
-function PlotPanel({ title, description, data, layout, height = 380 }) {
+function PlotPanel({ title, description, controls, data, layout, height = 380 }) {
   const containerRef = useRef(null);
   useEffect(() => {
     const container = containerRef.current;
@@ -113,8 +113,22 @@ function PlotPanel({ title, description, data, layout, height = 380 }) {
         <h2>{title}</h2>
         {description && <p>{description}</p>}
       </header>
+      {controls && <div className="plot-panel__controls">{controls}</div>}
       <div ref={containerRef} className="plot-panel__chart" style={{ height: `${height}px` }} />
     </section>
+  );
+}
+
+function LogToggle({ label, value, onChange }) {
+  return (
+    <label className="log-toggle">
+      <input
+        type="checkbox"
+        checked={Boolean(value)}
+        onChange={(event) => onChange(event.target.checked)}
+      />
+      <span>{label}</span>
+    </label>
   );
 }
 
@@ -206,6 +220,15 @@ function AnalyticsPlots() {
   const [bProp, setBProp] = useState('');
   const [cProp, setCProp] = useState('');
 
+  // Log/linear toggles per chart axis.  Ternary has no log axis (its
+  // components are percentages).  Histogram X is the binned analyte and
+  // doesn't get a log toggle in the UI; box/violin X is categorical.
+  const [scatterLogX, setScatterLogX] = useState(true);
+  const [scatterLogY, setScatterLogY] = useState(true);
+  const [histLogY, setHistLogY] = useState(true);
+  const [boxLogY, setBoxLogY] = useState(true);
+  const [violinLogY, setViolinLogY] = useState(true);
+
   // Reset prop selections when the source changes — the new source may not carry the previously-picked columns.
   useEffect(() => {
     setXProp('');
@@ -237,20 +260,21 @@ function AnalyticsPlots() {
     : null;
 
   const scatter = useMemo(() => buildScatterPlotConfig(activeRows, {
-    xProp, yProp, colorBy: groupBy, colourMap, log: { x: true, y: true }, template,
-  }), [activeRows, xProp, yProp, groupBy, colourMap, template]);
+    xProp, yProp, colorBy: groupBy, colourMap,
+    log: { x: scatterLogX, y: scatterLogY }, template,
+  }), [activeRows, xProp, yProp, groupBy, scatterLogX, scatterLogY, colourMap, template]);
 
   const histogram = useMemo(() => buildHistogramPlotConfig(activeRows, {
-    prop: distProp, groupBy, colourMap, log: true, template,
-  }), [activeRows, distProp, groupBy, colourMap, template]);
+    prop: distProp, groupBy, colourMap, log: histLogY, template,
+  }), [activeRows, distProp, groupBy, histLogY, colourMap, template]);
 
   const box = useMemo(() => buildBoxPlotConfig(activeRows, {
-    prop: distProp, groupBy, colourMap, log: true, template,
-  }), [activeRows, distProp, groupBy, colourMap, template]);
+    prop: distProp, groupBy, colourMap, log: boxLogY, template,
+  }), [activeRows, distProp, groupBy, boxLogY, colourMap, template]);
 
   const violin = useMemo(() => buildViolinPlotConfig(activeRows, {
-    prop: distProp, groupBy, colourMap, log: true, template,
-  }), [activeRows, distProp, groupBy, colourMap, template]);
+    prop: distProp, groupBy, colourMap, log: violinLogY, template,
+  }), [activeRows, distProp, groupBy, violinLogY, colourMap, template]);
 
   const ternary = useMemo(() => buildTernaryPlotConfig(activeRows, {
     aProp, bProp, cProp, colorBy: groupBy, colourMap, template,
@@ -350,14 +374,21 @@ function AnalyticsPlots() {
 
       <PlotPanel
         title={`Scatter — ${xProp} vs ${yProp}`}
-        description={`Coloured by "${groupBy || '(none)'}", log axes on both X and Y.`}
+        description={`Coloured by "${groupBy || '(none)'}".`}
+        controls={(
+          <>
+            <LogToggle label="log X" value={scatterLogX} onChange={setScatterLogX} />
+            <LogToggle label="log Y" value={scatterLogY} onChange={setScatterLogY} />
+          </>
+        )}
         data={scatter.data}
         layout={scatter.layout}
       />
 
       <PlotPanel
         title={`Histogram — ${distProp}`}
-        description={`Overlay grouped by "${groupBy || '(none)'}", log Y.`}
+        description={`Overlay grouped by "${groupBy || '(none)'}".`}
+        controls={<LogToggle label="log Y" value={histLogY} onChange={setHistLogY} />}
         data={histogram.data}
         layout={histogram.layout}
       />
@@ -365,14 +396,16 @@ function AnalyticsPlots() {
       <div className="analytics-grid">
         <PlotPanel
           title={`Box — ${distProp} per ${groupBy || '(set)'}`}
-          description="Outliers shown, log Y."
+          description="Outliers shown."
+          controls={<LogToggle label="log Y" value={boxLogY} onChange={setBoxLogY} />}
           data={box.data}
           layout={box.layout}
           height={360}
         />
         <PlotPanel
           title={`Violin — ${distProp} per ${groupBy || '(set)'}`}
-          description="Inner box + mean line, log Y."
+          description="Inner box + mean line."
+          controls={<LogToggle label="log Y" value={violinLogY} onChange={setViolinLogY} />}
           data={violin.data}
           layout={violin.layout}
           height={360}
