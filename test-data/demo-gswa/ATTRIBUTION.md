@@ -31,7 +31,7 @@ Attribution: Based on Department of Mines, Petroleum and Exploration material.
 - Dropped administrative columns (`Id`, `MRTFileId`, `LoadDate`, `ModifiedBy`, etc.) and per-row metadata not needed by the viewer.
 - Kept the full assay analyte set.
 - Coerced numerics; rows missing a required key (`hole_id` / `from` / `to`) were dropped.
-- Re-encoded each file as both `.csv` and `.parquet` (zstd compression).
+- Re-encoded each file as both `.csv` and `.parquet` (Snappy compression).
 
 ## No endorsement
 
