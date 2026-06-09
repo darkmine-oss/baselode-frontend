@@ -19,9 +19,21 @@ import './Drillhole.css';
 import { useProjectData } from '../context/ProjectDataContext.jsx';
 import { makeLocalProjector } from '../lib/localProjection.js';
 
+// Sequential, perceptually uniform "magma"-style ramp (10 bins) — low values
+// fade into the dark scene background, high values jump out as bright gold.
+// Better for grade colour-by than the previous diverging RdYlBu palette,
+// which wasted half its dynamic range on a meaningless mid-point.
 const ASSAY_COLOR_PALETTE_10 = [
-  '#313695', '#4575b4', '#74add1', '#abd9e9', '#e0f3f8',
-  '#fee090', '#fdae61', '#f46d43', '#d73027', '#a50026',
+  '#1d1147',
+  '#3b0f70',
+  '#641a80',
+  '#8c2981',
+  '#b73779',
+  '#de4968',
+  '#f7705c',
+  '#fe9f6d',
+  '#fece91',
+  '#fcfdbf',
 ];
 const FOV_STEPS = [1, 4, 8, 14, 21, 28];
 const CAMERA_CACHE_KEY = 'baselode-viewer-camera-v1';

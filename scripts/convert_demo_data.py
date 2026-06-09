@@ -40,7 +40,7 @@ def write_pair(df: pd.DataFrame, out_dir: Path, name: str) -> None:
     csv_path = out_dir / f"{name}.csv"
     parquet_path = out_dir / f"{name}.parquet"
     df.head(CSV_SAMPLE_ROWS).to_csv(csv_path, index=False)
-    df.to_parquet(parquet_path, index=False, compression="zstd")
+    df.to_parquet(parquet_path, index=False, compression="snappy")
     print(
         f"  {name:8s}  rows={len(df):>7d}  cols={len(df.columns):>3d}  "
         f"csv-sample={CSV_SAMPLE_ROWS}  "
