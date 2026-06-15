@@ -170,6 +170,16 @@
   width: 100%;
 }
 
+.plot-panel__error {
+  margin: 8px 0 0;
+  padding: 8px 10px;
+  border: var(--border-hairline) solid var(--color-outline-variant);
+  background: var(--color-surface-container-low);
+  color: var(--color-on-surface-variant);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
 .log-toggle {
   display: inline-flex;
   align-items: center;

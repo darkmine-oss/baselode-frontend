@@ -2,7 +2,7 @@
  * Copyright (C) 2026 Darkmine Pty Ltd
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import Plotly from 'plotly.js-dist-min';
 import {
@@ -27,6 +27,28 @@ const RESERVED_FOR_ANALYTICS = new Set([
   'sample_id', 'datasource_sample_id', 'datasource_surface_sample_id',
   'datasource_hole_id', 'collar_id', 'report_number',
 ]);
+
+const NON_WEBGL_TRACE_TYPES = {
+  scattergl: 'scatter',
+  heatmapgl: 'heatmap',
+  scatterpolargl: 'scatterpolar',
+  pointcloud: 'scatter',
+};
+
+function withoutWebGlTraces(data) {
+  return (data || []).map((trace) => {
+    const fallbackType = NON_WEBGL_TRACE_TYPES[trace?.type];
+    return fallbackType ? { ...trace, type: fallbackType } : trace;
+  });
+}
+
+function plotErrorMessage(error) {
+  const detail = error?.message || String(error || '');
+  if (/webgl|web gl|gl2d|regl/i.test(detail)) {
+    return 'This chart could not be rendered because the embedded browser did not provide WebGL. The analytics page now prefers non-WebGL traces, but this plot still failed.';
+  }
+  return detail ? `Plot render failed: ${detail}` : 'Plot render failed.';
+}
 
 function flattenAssayRows(combinedHoles) {
   const flattened = [];
@@ -101,17 +123,29 @@ function detectCategoricalColumns(rows) {
 
 function PlotPanel({ title, description, controls, data, layout, height = 380 }) {
   const containerRef = useRef(null);
+  const [renderError, setRenderError] = useState('');
   useEffect(() => {
+    let cancelled = false;
     const container = containerRef.current;
     if (!container) return undefined;
-    Plotly.react(container, data || [], { autosize: true, ...layout, height }, {
-      responsive: true,
-      displayModeBar: 'hover',
-    });
+    const render = async () => {
+      try {
+        await Plotly.react(container, withoutWebGlTraces(data), { autosize: true, ...layout, height }, {
+          responsive: true,
+          displayModeBar: 'hover',
+        });
+        if (!cancelled) setRenderError('');
+      } catch (error) {
+        console.warn(`${title} plot render failed`, error);
+        if (!cancelled) setRenderError(plotErrorMessage(error));
+      }
+    };
+    render();
     return () => {
+      cancelled = true;
       try { Plotly.purge(container); } catch (_) { /* unmounted */ }
     };
-  }, [data, layout, height]);
+  }, [data, layout, height, title]);
   return (
     <section className="plot-panel">
       <header className="plot-panel__header">
@@ -120,6 +154,7 @@ function PlotPanel({ title, description, controls, data, layout, height = 380 })
       </header>
       {controls && <div className="plot-panel__controls">{controls}</div>}
       <div ref={containerRef} className="plot-panel__chart" style={{ height: `${height}px` }} />
+      {renderError && <p className="plot-panel__error">{renderError}</p>}
     </section>
   );
 }
