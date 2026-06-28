@@ -214,11 +214,19 @@ function parseCollars(csvText) {
     const s = standardizeColumns(row);
     const lat = parseFloat(s.latitude);
     const lng = parseFloat(s.longitude);
+    const easting = parseFloat(s.easting);
+    const northing = parseFloat(s.northing);
     const holeId = (s[HOLE_ID] || '').toString().trim();
     if (!holeId || !Number.isFinite(lat) || !Number.isFinite(lng)) return [];
     return [{
       lat,
       lng,
+      // Projected grid coordinates (UTM easting/northing) when the source
+      // carries them. Used to georeference loaded OBJ meshes — which are in
+      // the same projected CRS — into the scene's local-meters frame. NaN
+      // when absent; consumers guard with Number.isFinite.
+      easting,
+      northing,
       holeId,
       // Leave empty when the source has no project_id / dataset
       // column.  Consumers that want a display fallback use `|| '—'`
