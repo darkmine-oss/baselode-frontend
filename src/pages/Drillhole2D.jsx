@@ -7,6 +7,7 @@ import { useLocation } from 'react-router-dom';
 import { createPortal } from 'react-dom';
 import {
   TracePlot,
+  LogToggle,
   useDrillholeTraceGrid,
   BASELODE_DARK_TEMPLATE,
   BASELODE_LIGHT_TEMPLATE,
@@ -17,6 +18,13 @@ import { useTheme } from '../context/ThemeContext.jsx';
 import { useStripLogSelections } from '../context/StripLogSelectionsContext.jsx';
 
 const PLOT_COUNT_KEY = 'baselode-viewer-strip-log-plot-count-v1';
+
+// Chart types whose value axis buildPlotConfig can log-scale; the toggle is
+// hidden for the rest (heat-strip / colored-line / multi variants encode or
+// stack values in ways a log axis would misrepresent).
+const LOG_SCALE_CHART_TYPES = new Set([
+  'bar', 'markers', 'markers+line', 'line', 'filled-line', 'step-line',
+]);
 const PLOT_COUNT_MIN = 1;
 const PLOT_COUNT_MAX = 16;
 const PLOT_COUNT_DEFAULT = 4;
@@ -215,11 +223,21 @@ function Drillhole2D() {
           {Array.from({ length: plotCount }).map((_, idx) => {
             const panelCache = stripCache.configs[idx] || {};
             const projectId = panelCache.projectId || '';
+            const graph = traceGraphs[idx];
+            const chartType = graph?.config?.chartType || '';
+            const logScaleAvailable = graph?.displayType === 'numeric'
+              && LOG_SCALE_CHART_TYPES.has(chartType);
+            const patternsAvailable = graph?.displayType === 'categorical';
+            const config = {
+              ...(graph?.config || { holeId: '', property: '', chartType: 'markers+line' }),
+              logScale: logScaleAvailable && panelCache.logScale === true,
+              usePatterns: patternsAvailable && panelCache.usePatterns === true,
+            };
             return (
+              <div className="strip-log-panel" key={idx}>
               <TracePlot
-                key={idx}
-                config={traceGraphs[idx]?.config || { holeId: '', property: '', chartType: 'markers+line' }}
-                graph={traceGraphs[idx]}
+                config={config}
+                graph={graph}
                 holeOptions={holeOptionsWithProject}
                 holeSelector={{
                   kind: 'group+hole',
@@ -240,10 +258,29 @@ function Drillhole2D() {
                     }
                   },
                 }}
-                propertyOptions={traceGraphs[idx]?.propertyOptions || []}
+                propertyOptions={graph?.propertyOptions || []}
                 onConfigChange={(patch) => handleConfigChange(idx, patch)}
                 template={template}
               />
+              {(logScaleAvailable || patternsAvailable) && (
+                <div className="strip-log-panel__footer">
+                  {logScaleAvailable && (
+                    <LogToggle
+                      label="Log scale"
+                      value={panelCache.logScale === true}
+                      onChange={(next) => setStripPanel(idx, { logScale: next })}
+                    />
+                  )}
+                  {patternsAvailable && (
+                    <LogToggle
+                      label="Hatch patterns"
+                      value={panelCache.usePatterns === true}
+                      onChange={(next) => setStripPanel(idx, { usePatterns: next })}
+                    />
+                  )}
+                </div>
+              )}
+              </div>
             );
           })}
         </div>
