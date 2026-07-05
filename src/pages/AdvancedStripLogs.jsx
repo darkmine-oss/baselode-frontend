@@ -7,6 +7,9 @@ import {
   PlotPanel,
   PropertySelect,
   LogToggle,
+  FROM,
+  TO,
+  MID,
   buildTwoCurveFillConfig,
   buildCompositionConfig,
   buildPointLogConfig,
@@ -24,11 +27,17 @@ import { useProjectData } from '../context/ProjectDataContext.jsx';
 import { useTheme } from '../context/ThemeContext.jsx';
 import { buildSurveyStationIndex, resolveDipAzimuthRows } from '../lib/structuralOrientation.js';
 
-// Row geometry / bookkeeping columns — never offered as plottable properties.
+// Row geometry / identifier / bookkeeping columns — never offered as
+// plottable properties (numeric IDs and coordinates would otherwise pass
+// the numeric-column detection and masquerade as assay measurements).
 const RESERVED_COLUMNS = new Set([
   'hole_id', 'from', 'to', 'mid', 'depth', 'md', '_source',
-  'sample_id', 'datasource_sample_id', 'datasource_hole_id', 'collar_id',
-  'report_number', 'orientation_source', 'extra',
+  'sample_id', 'datasource_sample_id', 'datasource_surface_sample_id',
+  'datasource_hole_id', 'collar_id', '_collar_id', '_hole_key',
+  'project_id', 'report_number', 'anumber',
+  'latitude', 'longitude', 'easting', 'northing', 'elevation',
+  'x', 'y', 'z', 'rl',
+  'orientation_source', 'extra',
 ]);
 
 /** Numeric assay columns for one hole, most-populated first. @private */
@@ -168,7 +177,25 @@ function AdvancedStripLogs() {
   const [structureHoleId, setStructureHoleId] = useState('');
   const effectiveStructureHoleId = structureHoleId && structureByHole.has(structureHoleId)
     ? structureHoleId : structureHoleIds[0] || '';
-  const holeStructureRows = structureByHole.get(effectiveStructureHoleId) || [];
+  // parseStructuralCSV also accepts interval-form tables (from/to instead of
+  // depth); normalize every row to a plotting depth so the point / annotation
+  // / orientation builders never see a missing depth column.
+  const holeStructureRows = useMemo(() => {
+    const rows = structureByHole.get(effectiveStructureHoleId) || [];
+    // null / empty cells must not coerce (Number(null) === 0 would invent
+    // a zero depth), so filter before converting.
+    const presentNumbers = (...candidates) => candidates
+      .filter((candidate) => candidate != null && candidate !== '')
+      .map((candidate) => Number(candidate))
+      .filter((candidate) => Number.isFinite(candidate));
+    return rows.map((row) => {
+      const [direct] = presentNumbers(row[DEPTH], row[MID]);
+      if (direct != null) return { ...row, [DEPTH]: direct };
+      const interval = presentNumbers(row[FROM], row[TO]);
+      if (interval.length === 2) return { ...row, [DEPTH]: (interval[0] + interval[1]) / 2 };
+      return row;
+    });
+  }, [structureByHole, effectiveStructureHoleId]);
 
   const { categorical: structureCategoricalColumns, text: structureTextColumns } = useMemo(
     () => structureColumnKinds(holeStructureRows),
