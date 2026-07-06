@@ -238,11 +238,23 @@ function Drillhole() {
 
   // Reset scene-holes whenever the project changes underneath us. Without
   // this, leftover holes from a previous project would refuse to clear.
+  // Loaded OBJ meshes go too: they were georeferenced against the previous
+  // project's collars, so keeping them would leave stale geometry in the
+  // scene and in the bounds.
   useEffect(() => {
     setHoles([]);
     setAddError('');
     setError('');
     setSelectedHoleId('');
+    if (objMeshGroupsRef.current.size) {
+      objMeshGroupsRef.current.forEach((group) => {
+        sceneRef.current?.scene?.remove(group);
+        disposeObject3D(group);
+      });
+      objMeshGroupsRef.current.clear();
+    }
+    setObjMeshes([]);
+    setObjError('');
   }, [collars, rawCsv?.survey, rawCsv?.precomputed]);
 
   // De-dupe happens inside the functional updater so the latest state is
