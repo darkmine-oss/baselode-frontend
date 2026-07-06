@@ -97,4 +97,8 @@
   --baselode-panel-controls-bg: var(--color-surface-container-low);
   --baselode-control-bg: var(--color-surface-container-low);
   --baselode-control-border: var(--border-hairline) solid var(--color-outline-variant);
+  --baselode-popover-bg: var(--color-surface-container);
+  --baselode-popover-fg: var(--color-on-surface);
+  --baselode-popover-border: var(--color-outline-variant);
+  --baselode-popover-accent: var(--color-on-surface-variant);
 }
