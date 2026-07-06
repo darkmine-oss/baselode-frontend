@@ -1036,6 +1036,11 @@ function applyGeoreferenceIfInRange(group, transform) {
       pos.setXYZ(i, x, y, pos.getZ(i));
     }
     pos.needsUpdate = true;
+    // setFromObject above cached bounding volumes in the source (UTM)
+    // coordinates; recompute so bounds reconciliation and camera fitting
+    // see the transformed mesh, not a box kilometres away.
+    child.geometry.computeBoundingBox();
+    child.geometry.computeBoundingSphere();
   });
   return true;
 }
