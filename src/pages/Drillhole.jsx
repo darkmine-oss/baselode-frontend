@@ -1094,7 +1094,9 @@ function reconcileSceneBounds(scene, holes, objGroups) {
     box.union(objBox);
     hasBounds = true;
   });
-  if (hasBounds) scene.lastBounds = boundsFromBox(box);
+  // Clear on empty as well — Fit/Recenter read scene.lastBounds, and stale
+  // bounds from removed content would steer the camera at deleted geometry.
+  scene.lastBounds = hasBounds ? boundsFromBox(box) : null;
 }
 
 function boundsFromBox(box) {
