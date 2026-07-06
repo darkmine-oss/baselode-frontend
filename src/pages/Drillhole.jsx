@@ -38,7 +38,10 @@ const ASSAY_COLOR_PALETTE_10 = [
   '#fcfdbf',
 ];
 const FOV_STEPS = [1, 4, 8, 14, 21, 28];
-const CAMERA_CACHE_KEY = 'baselode-viewer-camera-v1';
+// v2: precomputed-desurvey holes are now reprojected into the local frame
+// (previously left in raw UTM), so cameras cached against the old coordinates
+// would aim at empty space. Bumping the key discards those stale views.
+const CAMERA_CACHE_KEY = 'baselode-viewer-camera-v2';
 const SCENE_BG_KEY = 'baselode-viewer-3d-dark-bg-v1';
 
 function readInitialDarkBg() {
@@ -54,6 +57,7 @@ function Drillhole() {
   const containerRef = useRef(null);
   const sceneRef = useRef(null);
   const renderedHolesRef = useRef(null);
+  const hasFramedContentRef = useRef(false);
   const objFileInputRef = useRef(null);
   const objMeshGroupsRef = useRef(new Map());
   const restoredCameraRef = useRef(false);
@@ -254,10 +258,15 @@ function Drillhole() {
       setHoles((prev) => (prev.some((h) => h.id === entry.id) ? prev : [...prev, entry]));
     };
 
-    // 1) Precomputed wins.
+    // 1) Precomputed wins. Precomputed desurvey points are stored in the
+    // project's projected CRS (UTM/MGA easting-northing), whereas the survey
+    // path below emits local meters via `project`. Reproject them into the
+    // same local frame so the whole scene — holes and loaded OBJ meshes —
+    // shares one coordinate system. Falls back to the source frame when there
+    // are no collar control points to fit the transform from.
     const pre = precomputedByHole[holeId];
     if (pre) {
-      appendIfNew(pre);
+      appendIfNew(toLocalFrameHole(pre, utmToLocal));
       return;
     }
 
@@ -299,7 +308,7 @@ function Drillhole() {
       return;
     }
     appendIfNew({ id: h.id, project: h.project, points: pts });
-  }, [collars, surveyRows, precomputedByHole, project]);
+  }, [collars, surveyRows, precomputedByHole, project, utmToLocal]);
 
   const removeHoleFromScene = useCallback((holeId) => {
     setHoles((prev) => prev.filter((h) => h.id !== holeId));
@@ -401,13 +410,23 @@ function Drillhole() {
   // Drillholes + colouring.
   useEffect(() => {
     if (sceneRef.current) {
-      const preserveView = renderedHolesRef.current === holes || restoredCameraRef.current;
+      // The local frame is centred on the collar centroid, which can sit a long
+      // way (kilometres) from whichever holes the user actually adds. So the
+      // first time content appears, always frame it — otherwise the orbit pivot
+      // (controls.target) stays near the world origin and rotation swings the
+      // content around in a wide arc. After that initial fit, honour the cached
+      // / preserved view so colour-by toggles don't yank the camera.
+      const firstContent = holes.length > 0 && !hasFramedContentRef.current;
+      const preserveView = !firstContent
+        && (renderedHolesRef.current === holes || restoredCameraRef.current);
       sceneRef.current.setDrillholes(holes, {
         selectedAssayVariable: colorByVariable === 'None' ? '' : colorByVariable,
         assayIntervalsByHole: isCategorical ? geologyCategoryIntervalsByHole : selectedAssayIntervalsByHole,
         preserveView,
         isCategoricalVariable: isCategorical,
       });
+      if (firstContent) enforceZUpOrbit(sceneRef.current);
+      if (holes.length > 0) hasFramedContentRef.current = true;
       renderedHolesRef.current = holes;
       restoredCameraRef.current = false;
     }
@@ -858,8 +877,13 @@ function setSceneViewState(scene, viewState) {
 
 function recenterCameraToOriginZUp(scene, distance = 1000) {
   if (!scene?.camera || !scene?.controls) return;
-  scene.controls.target.set(0, 0, 0);
-  scene.camera.position.set(distance, distance, distance);
+  // Recentre on the content, not the world origin. The local frame's origin is
+  // the collar centroid, which can be kilometres from the holes/meshes actually
+  // in view, so targeting (0,0,0) would strand the user looking at empty space
+  // and leave rotation pivoting far from anything visible.
+  const target = scene.lastBounds ? centerFromBounds(scene.lastBounds) : new THREE.Vector3(0, 0, 0);
+  scene.controls.target.copy(target);
+  scene.camera.position.set(target.x + distance, target.y + distance, target.z + distance);
   enforceZUpOrbit(scene);
 }
 
@@ -956,23 +980,42 @@ function fitUtmToLocalTransform(collars, project) {
   };
 }
 
+// Whether a horizontal coordinate lands inside the project's grid extent (with a
+// generous margin). Used to tell data that is in the projected CRS — and so
+// should be reprojected to the local frame — apart from data already authored in
+// local meters, which sits near the origin and must pass through untouched.
+function isInProjectedRange(x, y, transform, margin = 50_000) {
+  const { minE, minN, maxE, maxN } = transform.bbox;
+  return x >= minE - margin && x <= maxE + margin && y >= minN - margin && y <= maxN + margin;
+}
+
+// Reproject a hole's points from projected grid coords into the local frame.
+// Z (elevation) is shared by both frames, so only X/Y move. Returns the hole
+// unchanged when there is no transform, or when its points already look local.
+function toLocalFrameHole(hole, transform) {
+  if (!transform) return hole;
+  const sample = (hole.points || []).find((p) => Number.isFinite(p?.x) && Number.isFinite(p?.y));
+  if (!sample || !isInProjectedRange(sample.x, sample.y, transform)) return hole;
+  const points = (hole.points || []).map((p) => {
+    const { x, y } = transform.apply(p.x, p.y);
+    return { ...p, x, y };
+  });
+  return { ...hole, points };
+}
+
 // Reproject an OBJ group in place from projected grid coords to the local frame,
-// but only when its horizontal centre falls within the project's grid extent
-// (generous margin). Leaves the X/Y untouched — and Z always — otherwise, so an
-// OBJ already authored in local meters passes through unchanged. Returns whether
-// the transform was applied. Vertex normals are (re)computed later in
-// prepareObjMeshGroup, so we only need to move positions here.
+// but only when its horizontal centre falls within the project's grid extent.
+// Leaves the X/Y untouched — and Z always — otherwise, so an OBJ already authored
+// in local meters passes through unchanged. Returns whether the transform was
+// applied. Vertex normals are (re)computed later in prepareObjMeshGroup, so we
+// only need to move positions here.
 function applyGeoreferenceIfInRange(group, transform) {
   if (!transform) return false;
   const box = new THREE.Box3().setFromObject(group);
   if (box.isEmpty()) return false;
   const cx = (box.min.x + box.max.x) / 2;
   const cy = (box.min.y + box.max.y) / 2;
-  const margin = 50_000; // ~50 km tolerance around the collars' grid extent
-  const { minE, minN, maxE, maxN } = transform.bbox;
-  if (cx < minE - margin || cx > maxE + margin || cy < minN - margin || cy > maxN + margin) {
-    return false;
-  }
+  if (!isInProjectedRange(cx, cy, transform)) return false;
   group.traverse((child) => {
     const pos = child.isMesh ? child.geometry?.attributes?.position : null;
     if (!pos) return;
