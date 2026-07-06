@@ -84,3 +84,17 @@
   text-transform: uppercase;
   color: var(--color-on-surface-variant);
 }
+
+/* Map the app theme tokens onto the baselode panel components' theming
+   hooks (PlotPanel / PropertySelect / LogToggle ship neutral light
+   fallbacks). Referencing the tokens keeps this a single mapping — the
+   values flip automatically with `.dark` on <html>. */
+:root {
+  --baselode-panel-bg: var(--color-surface-container);
+  --baselode-panel-fg: var(--color-on-surface);
+  --baselode-panel-border: var(--border-hairline) solid var(--color-outline-variant);
+  --baselode-panel-muted: var(--color-on-surface-variant);
+  --baselode-panel-controls-bg: var(--color-surface-container-low);
+  --baselode-control-bg: var(--color-surface-container-low);
+  --baselode-control-border: var(--border-hairline) solid var(--color-outline-variant);
+}
