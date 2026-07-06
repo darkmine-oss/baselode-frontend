@@ -354,6 +354,10 @@ function Drillhole() {
       objMeshGroupsRef.current.set(id, group);
       reconcileSceneBounds(sceneRef.current, holes, objMeshGroupsRef.current);
       sceneRef.current.focusOnLastBounds?.(1.2);
+      // The mesh is now framed content: without this, adding the first hole
+      // afterwards would count as "first content" and refit the camera to
+      // hole-only bounds, throwing the loaded mesh out of view.
+      hasFramedContentRef.current = true;
       setObjMeshes((prev) => [...prev, { id, name: file.name, georeferenced, ...stats }]);
     } catch (e) {
       setObjError(e?.message || String(e));
@@ -441,6 +445,10 @@ function Drillhole() {
       if (holes.length > 0) hasFramedContentRef.current = true;
       renderedHolesRef.current = holes;
       restoredCameraRef.current = false;
+      // setDrillholes overwrites scene.lastBounds with hole-only bounds, so
+      // fold any loaded OBJ meshes back in immediately — the effect below
+      // doesn't re-run for colour/interval changes.
+      reconcileSceneBounds(sceneRef.current, holes, objMeshGroupsRef.current);
     }
   }, [holes, colorByVariable, selectedAssayIntervalsByHole, isCategorical, geologyCategoryIntervalsByHole]);
 
