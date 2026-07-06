@@ -160,26 +160,3 @@
   max-width: 36ch;
   text-align: center;
 }
-
-/* Wrapper that pairs each TracePlot card with its per-track toggle footer;
-   it is the grid item now, so it must pass the cell height through. */
-.strip-log-panel {
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-}
-
-.strip-log-panel .plot-card {
-  flex: 1;
-  min-height: 0;
-}
-
-.strip-log-panel__footer {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 2px 8px 4px;
-  background: var(--color-surface-container-low);
-  font-size: 12px;
-  color: var(--color-on-surface-variant);
-}
