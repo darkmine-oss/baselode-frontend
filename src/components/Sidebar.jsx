@@ -13,7 +13,6 @@ import { isTauri } from '../lib/projectIo.js';
 const MENU = [
   { path: '/', label: 'Map' },
   { path: '/strip-log', label: 'Strip Logs' },
-  { path: '/strip-log-advanced', label: 'Advanced Strip Logs' },
   { path: '/drillhole', label: '3D Scene' },
   { path: '/analytics', label: 'Analytics' },
 ];

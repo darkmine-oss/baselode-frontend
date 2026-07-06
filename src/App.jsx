@@ -9,7 +9,6 @@ import Drillhole from './pages/Drillhole';
 import Drillhole2D from './pages/Drillhole2D';
 import DataInstructions from './pages/DataInstructions';
 import AnalyticsPlots from './pages/AnalyticsPlots';
-import AdvancedStripLogs from './pages/AdvancedStripLogs';
 import './App.css';
 
 function App() {
@@ -19,7 +18,6 @@ function App() {
         <Route path="/" element={<Home />} />
         <Route path="/drillhole" element={<Drillhole />} />
         <Route path="/strip-log" element={<Drillhole2D />} />
-        <Route path="/strip-log-advanced" element={<AdvancedStripLogs />} />
         <Route path="/analytics" element={<AnalyticsPlots />} />
         <Route path="/data-instructions" element={<DataInstructions />} />
         <Route path="*" element={<Navigate to="/" replace />} />
