@@ -220,6 +220,8 @@ function Drillhole2D() {
               ...(graph?.config || { holeId: '', property: '', chartType: 'markers+line' }),
               logScale: panelCache.logScale === true,
               usePatterns: panelCache.usePatterns === true,
+              stepped: panelCache.stepped === true,
+              fillArea: panelCache.fillArea === true,
             };
             return (
               <TracePlot
@@ -251,13 +253,12 @@ function Drillhole2D() {
                   // The display toggles (rendered inside TracePlot) aren't
                   // part of the trace-grid hook's config — persist them in
                   // the panel cache; everything else flows to the hook.
-                  const { logScale, usePatterns, ...gridPatch } = patch;
-                  if (logScale !== undefined || usePatterns !== undefined) {
-                    setStripPanel(idx, {
-                      ...(logScale !== undefined ? { logScale } : {}),
-                      ...(usePatterns !== undefined ? { usePatterns } : {}),
-                    });
-                  }
+                  const { logScale, usePatterns, stepped, fillArea, ...gridPatch } = patch;
+                  const toggles = { logScale, usePatterns, stepped, fillArea };
+                  const togglePatch = Object.fromEntries(
+                    Object.entries(toggles).filter(([, value]) => value !== undefined)
+                  );
+                  if (Object.keys(togglePatch).length) setStripPanel(idx, togglePatch);
                   if (Object.keys(gridPatch).length) handleConfigChange(idx, gridPatch);
                 }}
                 template={template}

@@ -36,7 +36,9 @@ export function StripLogSelectionsProvider({ children }) {
         const projectId = next?.projectId ?? prior?.projectId ?? '';
         const logScale = next?.logScale ?? prior?.logScale ?? false;
         const usePatterns = next?.usePatterns ?? prior?.usePatterns ?? false;
-        return next ? { ...next, projectId, logScale, usePatterns } : null;
+        const stepped = next?.stepped ?? prior?.stepped ?? false;
+        const fillArea = next?.fillArea ?? prior?.fillArea ?? false;
+        return next ? { ...next, projectId, logScale, usePatterns, stepped, fillArea } : null;
       }),
     }));
   }, []);
