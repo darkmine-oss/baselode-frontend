@@ -116,7 +116,7 @@ python3 scripts/convert_demo_data.py \
 
 ### Prerequisites
 
-- **Node 18+** and **npm**
+- **Node 24+** and **npm**
 - **Rust** (for the Tauri backend) — install via [rustup](https://rustup.rs/).
   On Windows you also need the
   [Microsoft C++ Build Tools](https://v2.tauri.app/start/prerequisites/#windows).
