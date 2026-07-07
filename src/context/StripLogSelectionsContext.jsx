@@ -9,10 +9,12 @@ import { createContext, useCallback, useContext, useMemo, useState } from 'react
 // back doesn't reset what the user picked.
 
 const INITIAL = {
-  // Array of `{ holeId, property, chartType, projectId }` keyed by
-  // panel index.  Sparse — index N exists only if that panel has been
-  // touched.  `projectId` is the optional group filter; '' means
-  // unfiltered (every hole is visible in the hole dropdown).
+  // Array of `{ holeId, property, chartType, projectId, logScale,
+  // usePatterns }` keyed by panel index.  Sparse — index N exists only
+  // if that panel has been touched.  `projectId` is the optional group
+  // filter; '' means unfiltered (every hole is visible in the hole
+  // dropdown).  `logScale` / `usePatterns` are the per-track display
+  // toggles folded into the TracePlot config.
   configs: [],
 };
 
@@ -23,16 +25,21 @@ export function StripLogSelectionsProvider({ children }) {
 
   // Replace the whole configs array (used when the page mirrors the
   // hook's current trace graphs back into the cache).  Preserves the
-  // per-panel `projectId` from the prior cache entry — it doesn't
-  // come from `useDrillholeTraceGrid`, so the mirror would otherwise
-  // wipe it on every panel edit.
+  // per-panel `projectId` / `logScale` / `usePatterns` from the prior
+  // cache entry — they don't come from `useDrillholeTraceGrid`, so the
+  // mirror would otherwise wipe them on every panel edit.
   const setAllConfigs = useCallback((configs) => {
     setSelections((current) => ({
       ...current,
       configs: (configs || []).map((next, idx) => {
         const prior = current.configs[idx];
         const projectId = next?.projectId ?? prior?.projectId ?? '';
-        return next ? { ...next, projectId } : null;
+        const logScale = next?.logScale ?? prior?.logScale ?? false;
+        const usePatterns = next?.usePatterns ?? prior?.usePatterns ?? false;
+        const stepped = next?.stepped ?? prior?.stepped ?? false;
+        const fillArea = next?.fillArea ?? prior?.fillArea ?? false;
+        const startFromZero = next?.startFromZero ?? prior?.startFromZero ?? false;
+        return next ? { ...next, projectId, logScale, usePatterns, stepped, fillArea, startFromZero } : null;
       }),
     }));
   }, []);

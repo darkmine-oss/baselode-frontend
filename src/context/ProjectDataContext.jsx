@@ -7,12 +7,14 @@ import Papa from 'papaparse';
 import {
   loadAssayFile,
   parseStructuralCSV,
+  parseSurveyCSV,
   parseUnifiedDataset,
   parseGeologyCsvText,
   standardizeColumns,
   HOLE_ID,
 } from 'baselode';
 import { isTauri, pickProjectFolder, readProjectFolder, readProjectFromFileList } from '../lib/projectIo.js';
+import { buildSurveyStationIndex, resolveDipAzimuthRows } from '../lib/structuralOrientation.js';
 import { parseSurfaceSamples } from '../lib/surfaceSamplesIo.js';
 
 const LAST_PROJECT_KEY = 'baselode-viewer-last-project';
@@ -183,6 +185,19 @@ async function parseProject(read) {
     }
   }
 
+  // Resolve structural orientations against the hole survey: alpha/beta-only
+  // structural points gain derived dip/azimuth, which is what makes the
+  // tadpole and dip/azimuth chart types work for oriented-core data.
+  if (files.survey && combinedHoles.length) {
+    try {
+      const surveyRows = await parseSurveyCSV(files.survey);
+      const stationIndex = buildSurveyStationIndex(surveyRows || []);
+      combinedHoles = resolveStructuralOrientations(combinedHoles, stationIndex);
+    } catch (e) {
+      errors.survey = e?.message || String(e);
+    }
+  }
+
   // Surface samples — out-of-hole sample points (rock chip / stream /
   // soil / outcrop) keyed by sample_id rather than hole_id.  Used by the
   // Analytics page.
@@ -205,6 +220,33 @@ async function parseProject(read) {
     surfaceSamples,
     errors,
   };
+}
+
+/**
+ * Resolve dip / azimuth for each combined hole's structural points.
+ *
+ * Points that already carry measured dip/azimuth pass through unchanged;
+ * alpha/beta-only points gain derived dip/azimuth via the hole's survey
+ * orientation at the measurement depth (tagged `orientation_source`).
+ * Points `resolveDipAzimuthRows` would drop — no depth, or no orientation
+ * information at all — are kept as-is so their categorical / comment columns
+ * still reach the strip-log grid.
+ *
+ * @param {Array<{holeId: string, points: Array<Object>}>} holes - Combined holes
+ * @param {Map<string, Array<Object>>} stationIndex - Survey stations per hole
+ *   (from `buildSurveyStationIndex`)
+ * @returns {Array<{holeId: string, points: Array<Object>}>}
+ */
+function resolveStructuralOrientations(holes, stationIndex) {
+  return holes.map((hole) => {
+    const stations = stationIndex.get(hole.holeId || hole.id);
+    const points = (hole.points || []).map((point) => {
+      if (point?._source !== 'structural') return point;
+      const { rows } = resolveDipAzimuthRows([point], stations);
+      return rows.length ? rows[0] : point;
+    });
+    return { ...hole, points };
+  });
 }
 
 function parseCollars(csvText) {

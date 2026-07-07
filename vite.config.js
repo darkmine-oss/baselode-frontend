@@ -26,6 +26,13 @@ export default defineConfig({
     __BASELODE_VERSION__: JSON.stringify(baselodePkg.version),
   },
   plugins: [react()],
+  resolve: {
+    // When baselode is npm-linked from the workspace (pre-release testing),
+    // the symlinked package resolves peers from its own node_modules —
+    // loading a second React copy and blank-screening the app at mount.
+    // Force the app's single copies (mirrors demo-viewer-react's config).
+    dedupe: ['react', 'react-dom', 'three', 'three-viewport-gizmo', 'papaparse', 'plotly.js-dist-min'],
+  },
   // Prevent Vite from obscuring Rust build errors in `tauri dev`.
   clearScreen: false,
   server: {

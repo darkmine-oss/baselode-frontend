@@ -215,11 +215,20 @@ function Drillhole2D() {
           {Array.from({ length: plotCount }).map((_, idx) => {
             const panelCache = stripCache.configs[idx] || {};
             const projectId = panelCache.projectId || '';
+            const graph = traceGraphs[idx];
+            const config = {
+              ...(graph?.config || { holeId: '', property: '', chartType: 'markers+line' }),
+              logScale: panelCache.logScale === true,
+              usePatterns: panelCache.usePatterns === true,
+              stepped: panelCache.stepped === true,
+              fillArea: panelCache.fillArea === true,
+              startFromZero: panelCache.startFromZero === true,
+            };
             return (
               <TracePlot
                 key={idx}
-                config={traceGraphs[idx]?.config || { holeId: '', property: '', chartType: 'markers+line' }}
-                graph={traceGraphs[idx]}
+                config={config}
+                graph={graph}
                 holeOptions={holeOptionsWithProject}
                 holeSelector={{
                   kind: 'group+hole',
@@ -240,8 +249,19 @@ function Drillhole2D() {
                     }
                   },
                 }}
-                propertyOptions={traceGraphs[idx]?.propertyOptions || []}
-                onConfigChange={(patch) => handleConfigChange(idx, patch)}
+                propertyOptions={graph?.propertyOptions || []}
+                onConfigChange={(patch) => {
+                  // The display toggles (rendered inside TracePlot) aren't
+                  // part of the trace-grid hook's config — persist them in
+                  // the panel cache; everything else flows to the hook.
+                  const { logScale, usePatterns, stepped, fillArea, startFromZero, ...gridPatch } = patch;
+                  const toggles = { logScale, usePatterns, stepped, fillArea, startFromZero };
+                  const togglePatch = Object.fromEntries(
+                    Object.entries(toggles).filter(([, value]) => value !== undefined)
+                  );
+                  if (Object.keys(togglePatch).length) setStripPanel(idx, togglePatch);
+                  if (Object.keys(gridPatch).length) handleConfigChange(idx, gridPatch);
+                }}
                 template={template}
               />
             );
