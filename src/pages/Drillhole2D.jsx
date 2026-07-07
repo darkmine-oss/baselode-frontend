@@ -222,6 +222,7 @@ function Drillhole2D() {
               usePatterns: panelCache.usePatterns === true,
               stepped: panelCache.stepped === true,
               fillArea: panelCache.fillArea === true,
+              startFromZero: panelCache.startFromZero === true,
             };
             return (
               <TracePlot
@@ -253,8 +254,8 @@ function Drillhole2D() {
                   // The display toggles (rendered inside TracePlot) aren't
                   // part of the trace-grid hook's config — persist them in
                   // the panel cache; everything else flows to the hook.
-                  const { logScale, usePatterns, stepped, fillArea, ...gridPatch } = patch;
-                  const toggles = { logScale, usePatterns, stepped, fillArea };
+                  const { logScale, usePatterns, stepped, fillArea, startFromZero, ...gridPatch } = patch;
+                  const toggles = { logScale, usePatterns, stepped, fillArea, startFromZero };
                   const togglePatch = Object.fromEntries(
                     Object.entries(toggles).filter(([, value]) => value !== undefined)
                   );
