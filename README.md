@@ -6,6 +6,46 @@ in [Tauri v2](https://v2.tauri.app/) for distribution as a native Windows `.exe`
 [`baselode`](https://www.npmjs.com/package/baselode) library — open a project
 folder of CSVs and explore the holes on a map, in 3D, and as strip logs.
 
+## Opening the app on macOS
+
+> Only continue if you downloaded the app from an official Darkmine
+> [GitHub release](https://github.com/darkmine-oss/baselode-frontend/releases).
+
+1. Download the app and drag it into the **Applications** folder.
+2. Try to open it normally. macOS will display a security warning.
+3. Click **Done** or **Cancel**.
+4. Open **Apple menu → System Settings → Privacy & Security**.
+5. Scroll down to the **Security** section.
+6. Find the message saying the app was blocked and click **Open Anyway**.
+7. Enter your Mac password if requested.
+8. Confirm by clicking **Open**.
+
+The Mac should remember this decision, so the app can be opened normally
+afterward. The **Open Anyway** option is available for approximately one hour
+after the blocked launch attempt. These are Apple's current official
+instructions.
+
+## Opening the app on Windows
+
+> Only continue if you downloaded the installer from an official Darkmine
+> [GitHub release](https://github.com/darkmine-oss/baselode-frontend/releases).
+
+Windows Defender SmartScreen warns before running installers it doesn't
+recognise. Because the build isn't signed with a widely-trusted certificate,
+you'll see this warning even for a legitimate download — it's expected.
+
+1. Double-click the downloaded installer.
+2. If Windows displays **"Windows protected your PC"**, click **More info**.
+3. Check that the app name and publisher details are what you expect. An
+   unsigned build may show **Unknown publisher**.
+4. Click **Run anyway**.
+5. If Windows asks whether the app may make changes to the device, click
+   **Yes**.
+6. Continue through the installer normally.
+
+If **"Run anyway"** is not shown, the computer may have Windows 11 Smart App
+Control enabled or may be managed by an employer.
+
 ## Features
 
 - **Map** — collars plotted on OpenStreetMap with clustering, hole search, and
