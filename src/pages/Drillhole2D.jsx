@@ -122,6 +122,19 @@ function Drillhole2D() {
     return [...seen].sort((a, b) => a.localeCompare(b));
   }, [holeOptionsWithProject]);
 
+  // When the data carries exactly one project — and every hole belongs to
+  // it — default each panel's Project filter to that project so the
+  // dropdown shows it instead of sitting on the "Select project"
+  // placeholder. Guarded on every hole matching so auto-filtering can
+  // never hide a hole (an unassigned-project hole would otherwise vanish
+  // from the picker, blanking a panel).
+  const soleProject = useMemo(() => (
+    projectOptions.length === 1
+      && holeOptionsWithProject.every((option) => option.project === projectOptions[0])
+      ? projectOptions[0]
+      : ''
+  ), [projectOptions, holeOptionsWithProject]);
+
   useEffect(() => {
     const holeIdFromNav = location.state?.holeId;
     if (holeIdFromNav) {
@@ -214,7 +227,7 @@ function Drillhole2D() {
         <div className="plots-grid">
           {Array.from({ length: plotCount }).map((_, idx) => {
             const panelCache = stripCache.configs[idx] || {};
-            const projectId = panelCache.projectId || '';
+            const projectId = panelCache.projectId || soleProject;
             const graph = traceGraphs[idx];
             const config = {
               ...(graph?.config || { holeId: '', property: '', chartType: 'markers+line' }),
