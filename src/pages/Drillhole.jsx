@@ -524,103 +524,114 @@ function Drillhole() {
     <div className="three-d-controls">
       <div className="label-caps">3D Scene</div>
 
-      {/* Holes with a real desurveyed drill string (>= 2 points). */}
-      <label className="three-d-control">
-        <span>Hole (3D string)</span>
-        <select
-          value={selectedHoleId}
-          onChange={(e) => setSelectedHoleId(e.target.value)}
-          disabled={!holeBuckets.full.length}
-        >
-          <option value="">{holeBuckets.full.length ? 'Pick a hole…' : 'No holes with a 3D string'}</option>
-          {holeBuckets.full.map((id) => (
-            <option key={id} value={id}>{id}</option>
-          ))}
-        </select>
-      </label>
-      <button
-        type="button"
-        className="primary-button"
-        onClick={() => {
-          if (!selectedHoleId) return;
-          addHoleToScene(selectedHoleId);
-        }}
-        disabled={!selectedHoleId || holes.some((h) => h.id === selectedHoleId)}
-      >
-        {selectedHoleId && holes.some((h) => h.id === selectedHoleId)
-          ? 'Already in scene'
-          : 'Add to scene'}
-      </button>
+      <section className="three-d-picker-section" aria-labelledby="three-d-picker-heading">
+        <div className="three-d-section-heading" id="three-d-picker-heading">Select a hole to add</div>
+        <div className="three-d-section-help">Choose a hole below, then add it to the 3D scene.</div>
 
-      {/* No drill string, but a precomputed point or collar elevation provides
-          one accurate point. */}
-      {holeBuckets.collar.length > 0 && (
-        <>
-          <label className="three-d-control">
-            <span>Hole (point only)</span>
-            <select
-              value={selectedCollarHoleId}
-              onChange={(e) => setSelectedCollarHoleId(e.target.value)}
-            >
-              <option value="">Pick a hole…</option>
-              {holeBuckets.collar.map((id) => (
-                <option key={id} value={id}>{id}</option>
-              ))}
-            </select>
-          </label>
-          <button
-            type="button"
-            className="primary-button"
-            onClick={() => {
-              if (!selectedCollarHoleId) return;
-              if (precomputedByHole[selectedCollarHoleId]) addHoleToScene(selectedCollarHoleId);
-              else addCollarPointToScene(selectedCollarHoleId);
-            }}
-            disabled={!selectedCollarHoleId || holes.some((h) => h.id === selectedCollarHoleId)}
-          >
-            {selectedCollarHoleId && holes.some((h) => h.id === selectedCollarHoleId)
-              ? 'Already in scene'
-              : 'Add point to scene'}
-          </button>
-        </>
-      )}
-
-      {/* No trace and no elevation — can't be placed in 3D. Listed for
-          reference only; not addable. */}
-      {holeBuckets.noSurvey.length > 0 && (
+        {/* Holes with a real desurveyed drill string (>= 2 points). */}
         <label className="three-d-control">
-          <span>Hole (no survey)</span>
+          <span>Hole (3D string)</span>
           <select
-            value={selectedNoSurveyHoleId}
-            onChange={(e) => setSelectedNoSurveyHoleId(e.target.value)}
-            title="These holes have no desurveyed trace and no collar elevation, so they can't be placed in 3D."
+            value={selectedHoleId}
+            onChange={(e) => setSelectedHoleId(e.target.value)}
+            disabled={!holeBuckets.full.length}
           >
-            <option value="">{`${holeBuckets.noSurvey.length} hole${holeBuckets.noSurvey.length === 1 ? '' : 's'} — no 3D geometry`}</option>
-            {holeBuckets.noSurvey.map((id) => (
+            <option value="">{holeBuckets.full.length ? 'Pick a hole…' : 'No holes with a 3D string'}</option>
+            {holeBuckets.full.map((id) => (
               <option key={id} value={id}>{id}</option>
             ))}
           </select>
         </label>
-      )}
+        <button
+          type="button"
+          className="primary-button"
+          onClick={() => {
+            if (!selectedHoleId) return;
+            addHoleToScene(selectedHoleId);
+          }}
+          disabled={!selectedHoleId || holes.some((h) => h.id === selectedHoleId)}
+        >
+          {selectedHoleId && holes.some((h) => h.id === selectedHoleId)
+            ? 'Already in scene'
+            : 'Add to scene'}
+        </button>
+
+        {/* No drill string, but a precomputed point or collar elevation provides
+            one accurate point. */}
+        {holeBuckets.collar.length > 0 && (
+          <>
+            <label className="three-d-control">
+              <span>Hole (point only)</span>
+              <select
+                value={selectedCollarHoleId}
+                onChange={(e) => setSelectedCollarHoleId(e.target.value)}
+              >
+                <option value="">Pick a hole…</option>
+                {holeBuckets.collar.map((id) => (
+                  <option key={id} value={id}>{id}</option>
+                ))}
+              </select>
+            </label>
+            <button
+              type="button"
+              className="primary-button"
+              onClick={() => {
+                if (!selectedCollarHoleId) return;
+                if (precomputedByHole[selectedCollarHoleId]) addHoleToScene(selectedCollarHoleId);
+                else addCollarPointToScene(selectedCollarHoleId);
+              }}
+              disabled={!selectedCollarHoleId || holes.some((h) => h.id === selectedCollarHoleId)}
+            >
+              {selectedCollarHoleId && holes.some((h) => h.id === selectedCollarHoleId)
+                ? 'Already in scene'
+                : 'Add point to scene'}
+            </button>
+          </>
+        )}
+
+        {/* No trace and no elevation — can't be placed in 3D. Listed for
+            reference only; not addable. */}
+        {holeBuckets.noSurvey.length > 0 && (
+          <label className="three-d-control">
+            <span>Hole (no survey)</span>
+            <select
+              value={selectedNoSurveyHoleId}
+              onChange={(e) => setSelectedNoSurveyHoleId(e.target.value)}
+              title="These holes have no desurveyed trace and no collar elevation, so they can't be placed in 3D."
+            >
+              <option value="">{`${holeBuckets.noSurvey.length} hole${holeBuckets.noSurvey.length === 1 ? '' : 's'} — no 3D geometry`}</option>
+              {holeBuckets.noSurvey.map((id) => (
+                <option key={id} value={id}>{id}</option>
+              ))}
+            </select>
+          </label>
+        )}
+      </section>
 
       {addError && <div className="error-banner small">{addError}</div>}
       {holes.length > 0 && (
-        <ul className="three-d-added-list" aria-label="Holes in scene">
-          {holes.map((h) => (
-            <li key={h.id}>
-              <span className="hole-id" title={h.id}>{h.id}</span>
-              <button
-                type="button"
-                className="remove-btn"
-                onClick={() => removeHoleFromScene(h.id)}
-                aria-label={`Remove ${h.id}`}
-                title={`Remove ${h.id}`}
-              >
-                ×
-              </button>
-            </li>
-          ))}
-        </ul>
+        <section className="three-d-scene-section" aria-labelledby="three-d-scene-heading">
+          <div className="three-d-section-heading" id="three-d-scene-heading">
+            Holes in scene <span className="three-d-scene-count">{holes.length}</span>
+          </div>
+          <div className="three-d-section-help">Visible in the 3D view. Remove a hole with ×.</div>
+          <ul className="three-d-added-list" aria-label="Holes in scene">
+            {holes.map((h) => (
+              <li key={h.id}>
+                <span className="hole-id" title={h.id}>{h.id}</span>
+                <button
+                  type="button"
+                  className="remove-btn"
+                  onClick={() => removeHoleFromScene(h.id)}
+                  aria-label={`Remove ${h.id}`}
+                  title={`Remove ${h.id}`}
+                >
+                  ×
+                </button>
+              </li>
+            ))}
+          </ul>
+        </section>
       )}
       <div className="three-d-divider" />
       <button
