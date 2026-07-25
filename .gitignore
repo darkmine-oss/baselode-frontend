@@ -4,6 +4,10 @@ dist-ssr
 *.local
 .vite
 
+# No committed lockfile — dependencies intentionally float to latest on every
+# install/build (see package.json). Committing a lock would re-pin them.
+package-lock.json
+
 # Editor
 .vscode/*
 !.vscode/extensions.json

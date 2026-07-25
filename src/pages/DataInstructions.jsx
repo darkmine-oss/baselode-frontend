@@ -88,6 +88,13 @@ function DataInstructions() {
         <p>
           <code>hole_id</code> is the join key across files — use the same string everywhere.
         </p>
+        <p>
+          Geology is deliberately schema-flexible: after the required interval columns,
+          every non-reserved column in <code>geology.csv</code> is carried into the
+          Viewer. Numeric columns appear as depth tracks, categorical columns as
+          selectable interval strips, and description/comment columns as interval
+          annotations. Adding a geology attribute does not require a frontend update.
+        </p>
 
         <h2>Projection</h2>
         <p>

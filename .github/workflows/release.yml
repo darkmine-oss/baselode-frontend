@@ -99,7 +99,9 @@ jobs:
         uses: actions/setup-node@v5
         with:
           node-version: '20'
-          cache: 'npm'
+          # No `cache: 'npm'` — the setup-node cache keys off a lockfile,
+          # which this repo intentionally does not commit (deps float to
+          # latest). With no lockfile the cache step errors out.
 
       - name: Set up Rust
         uses: dtolnay/rust-toolchain@stable
@@ -153,7 +155,9 @@ jobs:
           grep -m1 '^version' src-tauri/Cargo.toml
 
       - name: Install npm dependencies
-        run: npm ci
+        # `npm install` (not `npm ci`): no lockfile is committed, so each
+        # release resolves the latest published version of every dependency.
+        run: npm install
 
       - name: Build + bundle (Tauri)
         uses: tauri-apps/tauri-action@v0.6.0

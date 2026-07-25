@@ -68,6 +68,8 @@ function Drillhole() {
   // Scene contains only holes the user has explicitly added via the sidebar.
   const [holes, setHoles] = useState([]);
   const [selectedHoleId, setSelectedHoleId] = useState('');
+  const [selectedCollarHoleId, setSelectedCollarHoleId] = useState('');
+  const [selectedNoSurveyHoleId, setSelectedNoSurveyHoleId] = useState('');
   const [addError, setAddError] = useState('');
   const [objMeshes, setObjMeshes] = useState([]);
   const [objError, setObjError] = useState('');
@@ -218,22 +220,43 @@ function Drillhole() {
   // metadata or proj dependency needed. Null until enough control points exist.
   const utmToLocal = useMemo(() => fitUtmToLocalTransform(collars, project), [collars, project]);
 
-  // Hole IDs that can actually be added to the scene: a collar plus at
-  // least one survey row (or a precomputed entry). Holes without any
-  // downhole geometry would otherwise produce nothing on Add.
-  const allHoleIds = useMemo(() => {
-    const surveySet = new Set();
-    if (surveyRows) {
-      for (const r of surveyRows) {
-        if (r?.hole_id) surveySet.add(r.hole_id);
+  // Classify every collar by the 3D geometry it can actually produce, so the
+  // picker separates holes that render a real drill string from those that
+  // don't. Merely appearing in the survey rows isn't enough — a hole with a
+  // single survey station desurveys to one point (a collar, not a string), so
+  // we bucket on the resulting point count, not on presence:
+  //   • full     — precomputed OR desurvey yields >= 2 points → a drill trace
+  //   • collar   — no trace, but a precomputed point or a collar elevation
+  //                provides one accurate point (rendered at its true Z)
+  //   • noSurvey — no trace and no elevation → can't be placed in Z at all
+  const holeBuckets = useMemo(() => {
+    // Desurvey every collar once (single pass) and record the point count.
+    const desurveyCount = new Map();
+    if (surveyRows?.length && collars.length) {
+      let traces = [];
+      try { traces = desurveyTraces(collars, surveyRows) || []; } catch (e) { traces = []; }
+      for (const t of traces) {
+        if (!t?.id) continue;
+        const n = (t.points || []).filter((p) => Number.isFinite(p.z)).length;
+        desurveyCount.set(t.id, Math.max(desurveyCount.get(t.id) || 0, n));
       }
     }
-    const precSet = new Set(Object.keys(precomputedByHole));
-    return Array.from(new Set(
-      collars
-        .map((c) => c.holeId)
-        .filter((id) => id && (surveySet.has(id) || precSet.has(id)))
-    )).sort();
+    const full = [];
+    const collar = [];
+    const noSurvey = [];
+    const seen = new Set();
+    for (const c of collars) {
+      const id = c.holeId;
+      if (!id || seen.has(id)) continue;
+      seen.add(id);
+      const preN = precomputedByHole[id]?.points?.length || 0;
+      const geomN = Math.max(preN, desurveyCount.get(id) || 0);
+      if (geomN >= 2) full.push(id);
+      else if (preN >= 1 || Number.isFinite(c.elevation)) collar.push(id);
+      else noSurvey.push(id);
+    }
+    full.sort(); collar.sort(); noSurvey.sort();
+    return { full, collar, noSurvey };
   }, [collars, surveyRows, precomputedByHole]);
 
   // Reset scene-holes whenever the project changes underneath us. Without
@@ -246,6 +269,8 @@ function Drillhole() {
     setAddError('');
     setError('');
     setSelectedHoleId('');
+    setSelectedCollarHoleId('');
+    setSelectedNoSurveyHoleId('');
     if (objMeshGroupsRef.current.size) {
       objMeshGroupsRef.current.forEach((group) => {
         sceneRef.current?.scene?.remove(group);
@@ -308,11 +333,16 @@ function Drillhole() {
       return;
     }
     const h = desurveyed[0];
+    // baselode emits survey-trace Z relative to the collar (z=0 at the
+    // collar). Lift it to the collar RL when known so survey-derived traces
+    // share the same absolute vertical datum as collar-only holes.
+    const collarElevation = Number(collar.elevation);
+    const zOffset = Number.isFinite(collarElevation) ? collarElevation : 0;
     const pts = (h.points || [])
       .map((p) => {
         const xy = project(p.lat ?? 0, p.lng ?? 0);
         if (!Number.isFinite(xy.x) || !Number.isFinite(xy.y) || !Number.isFinite(p.z)) return null;
-        return { x: xy.x, y: xy.y, z: p.z, md: p.md };
+        return { x: xy.x, y: xy.y, z: zOffset + p.z, md: p.md };
       })
       .filter(Boolean);
     if (!pts.length) {
@@ -321,6 +351,38 @@ function Drillhole() {
     }
     appendIfNew({ id: h.id, project: h.project, points: pts });
   }, [collars, surveyRows, precomputedByHole, project, utmToLocal]);
+
+  // Add a collar-only hole: no desurveyed string, but the collar carries an
+  // elevation, so we can place a single accurate point at (collar x/y, RL).
+  // The scene renders a lone point as a collar circle. Kept separate from
+  // addHoleToScene because there is no trace to desurvey — the collar RL is
+  // the only Z we have (baselode's desurvey starts traces at z=0 and ignores
+  // collar elevation, so a real RL never reaches the string path).
+  const addCollarPointToScene = useCallback((holeId) => {
+    if (!holeId) return;
+    setAddError('');
+    if (!project) {
+      setAddError('Local projection not ready (no collars).');
+      return;
+    }
+    const collar = collars.find((c) => c.holeId === holeId);
+    if (!collar) {
+      setAddError(`Collar not found for ${holeId}.`);
+      return;
+    }
+    const z = Number(collar.elevation);
+    if (!Number.isFinite(z)) {
+      setAddError(`No collar elevation for ${holeId}.`);
+      return;
+    }
+    const xy = project(collar.lat, collar.lng);
+    if (!Number.isFinite(xy?.x) || !Number.isFinite(xy?.y)) {
+      setAddError(`Could not project collar for ${holeId}.`);
+      return;
+    }
+    const entry = { id: holeId, project: collar.project, points: [{ x: xy.x, y: xy.y, z, md: 0 }] };
+    setHoles((prev) => (prev.some((h) => h.id === entry.id) ? prev : [...prev, entry]));
+  }, [collars, project]);
 
   const removeHoleFromScene = useCallback((holeId) => {
     setHoles((prev) => prev.filter((h) => h.id !== holeId));
@@ -461,50 +523,115 @@ function Drillhole() {
   const sidebarControls = (
     <div className="three-d-controls">
       <div className="label-caps">3D Scene</div>
-      <label className="three-d-control">
-        <span>Hole</span>
-        <select
-          value={selectedHoleId}
-          onChange={(e) => setSelectedHoleId(e.target.value)}
-          disabled={!allHoleIds.length}
+
+      <section className="three-d-picker-section" aria-labelledby="three-d-picker-heading">
+        <div className="three-d-section-heading" id="three-d-picker-heading">Select a hole to add</div>
+        <div className="three-d-section-help">Choose a hole below, then add it to the 3D scene.</div>
+
+        {/* Holes with a real desurveyed drill string (>= 2 points). */}
+        <label className="three-d-control">
+          <span>Hole (3D string)</span>
+          <select
+            value={selectedHoleId}
+            onChange={(e) => setSelectedHoleId(e.target.value)}
+            disabled={!holeBuckets.full.length}
+          >
+            <option value="">{holeBuckets.full.length ? 'Pick a hole…' : 'No holes with a 3D string'}</option>
+            {holeBuckets.full.map((id) => (
+              <option key={id} value={id}>{id}</option>
+            ))}
+          </select>
+        </label>
+        <button
+          type="button"
+          className="primary-button"
+          onClick={() => {
+            if (!selectedHoleId) return;
+            addHoleToScene(selectedHoleId);
+          }}
+          disabled={!selectedHoleId || holes.some((h) => h.id === selectedHoleId)}
         >
-          <option value="">{allHoleIds.length ? 'Pick a hole…' : 'No holes with survey data'}</option>
-          {allHoleIds.map((id) => (
-            <option key={id} value={id}>{id}</option>
-          ))}
-        </select>
-      </label>
-      <button
-        type="button"
-        className="primary-button"
-        onClick={() => {
-          if (!selectedHoleId) return;
-          addHoleToScene(selectedHoleId);
-        }}
-        disabled={!selectedHoleId || holes.some((h) => h.id === selectedHoleId)}
-      >
-        {selectedHoleId && holes.some((h) => h.id === selectedHoleId)
-          ? 'Already in scene'
-          : 'Add to scene'}
-      </button>
+          {selectedHoleId && holes.some((h) => h.id === selectedHoleId)
+            ? 'Already in scene'
+            : 'Add to scene'}
+        </button>
+
+        {/* No drill string, but a precomputed point or collar elevation provides
+            one accurate point. */}
+        {holeBuckets.collar.length > 0 && (
+          <>
+            <label className="three-d-control">
+              <span>Hole (point only)</span>
+              <select
+                value={selectedCollarHoleId}
+                onChange={(e) => setSelectedCollarHoleId(e.target.value)}
+              >
+                <option value="">Pick a hole…</option>
+                {holeBuckets.collar.map((id) => (
+                  <option key={id} value={id}>{id}</option>
+                ))}
+              </select>
+            </label>
+            <button
+              type="button"
+              className="primary-button"
+              onClick={() => {
+                if (!selectedCollarHoleId) return;
+                if (precomputedByHole[selectedCollarHoleId]) addHoleToScene(selectedCollarHoleId);
+                else addCollarPointToScene(selectedCollarHoleId);
+              }}
+              disabled={!selectedCollarHoleId || holes.some((h) => h.id === selectedCollarHoleId)}
+            >
+              {selectedCollarHoleId && holes.some((h) => h.id === selectedCollarHoleId)
+                ? 'Already in scene'
+                : 'Add point to scene'}
+            </button>
+          </>
+        )}
+
+        {/* No trace and no elevation — can't be placed in 3D. Listed for
+            reference only; not addable. */}
+        {holeBuckets.noSurvey.length > 0 && (
+          <label className="three-d-control">
+            <span>Hole (no survey)</span>
+            <select
+              value={selectedNoSurveyHoleId}
+              onChange={(e) => setSelectedNoSurveyHoleId(e.target.value)}
+              title="These holes have no desurveyed trace and no collar elevation, so they can't be placed in 3D."
+            >
+              <option value="">{`${holeBuckets.noSurvey.length} hole${holeBuckets.noSurvey.length === 1 ? '' : 's'} — no 3D geometry`}</option>
+              {holeBuckets.noSurvey.map((id) => (
+                <option key={id} value={id}>{id}</option>
+              ))}
+            </select>
+          </label>
+        )}
+      </section>
+
       {addError && <div className="error-banner small">{addError}</div>}
       {holes.length > 0 && (
-        <ul className="three-d-added-list" aria-label="Holes in scene">
-          {holes.map((h) => (
-            <li key={h.id}>
-              <span className="hole-id" title={h.id}>{h.id}</span>
-              <button
-                type="button"
-                className="remove-btn"
-                onClick={() => removeHoleFromScene(h.id)}
-                aria-label={`Remove ${h.id}`}
-                title={`Remove ${h.id}`}
-              >
-                ×
-              </button>
-            </li>
-          ))}
-        </ul>
+        <section className="three-d-scene-section" aria-labelledby="three-d-scene-heading">
+          <div className="three-d-section-heading" id="three-d-scene-heading">
+            Holes in scene <span className="three-d-scene-count">{holes.length}</span>
+          </div>
+          <div className="three-d-section-help">Visible in the 3D view. Remove a hole with ×.</div>
+          <ul className="three-d-added-list" aria-label="Holes in scene">
+            {holes.map((h) => (
+              <li key={h.id}>
+                <span className="hole-id" title={h.id}>{h.id}</span>
+                <button
+                  type="button"
+                  className="remove-btn"
+                  onClick={() => removeHoleFromScene(h.id)}
+                  aria-label={`Remove ${h.id}`}
+                  title={`Remove ${h.id}`}
+                >
+                  ×
+                </button>
+              </li>
+            ))}
+          </ul>
+        </section>
       )}
       <div className="three-d-divider" />
       <button

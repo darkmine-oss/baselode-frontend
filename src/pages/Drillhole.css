@@ -71,7 +71,61 @@
 .three-d-controls {
   display: flex;
   flex-direction: column;
+  gap: 10px;
+}
+
+.three-d-picker-section,
+.three-d-scene-section {
+  display: flex;
+  flex-direction: column;
   gap: 8px;
+  padding: 10px;
+}
+
+/* Selection controls and scene membership deliberately use different
+   containers so a selected dropdown value is not mistaken for a hole that
+   has already been added to the 3D view. */
+.three-d-picker-section {
+  border: var(--border-hairline) solid var(--color-outline-variant);
+  background: var(--color-surface-container-low);
+}
+
+.three-d-scene-section {
+  border: var(--border-hairline) solid var(--color-outline-variant);
+  border-left: 3px solid hsl(var(--accent));
+  background: var(--color-surface-container-high);
+}
+
+.three-d-section-heading {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--color-on-surface);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  line-height: 1.2;
+  text-transform: uppercase;
+}
+
+.three-d-section-help {
+  color: var(--color-on-surface-variant);
+  font-size: 10px;
+  line-height: 1.35;
+}
+
+.three-d-scene-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: hsl(var(--accent));
+  color: var(--color-on-primary);
+  font-size: 10px;
+  letter-spacing: 0;
 }
 
 .three-d-control {
@@ -145,7 +199,7 @@
 
 .three-d-added-list {
   list-style: none;
-  margin: 4px 0 0;
+  margin: 0;
   padding: 0;
   display: flex;
   flex-direction: column;
@@ -160,7 +214,7 @@
   justify-content: space-between;
   gap: 6px;
   padding: 4px 6px;
-  background: var(--color-surface-container-low);
+  background: var(--color-surface-container);
   font-size: 12px;
   color: var(--color-on-surface);
 }

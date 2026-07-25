@@ -2,7 +2,7 @@
  * Copyright (C) 2026 Darkmine Pty Ltd
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route, Navigate } from 'react-router';
 import Layout from './components/Layout';
 import Home from './pages/Home';
 import Drillhole from './pages/Drillhole';
