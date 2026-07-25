@@ -1,6 +1,6 @@
 {
   "name": "baselode-viewer",
-  "version": "0.1.1",
+  "version": "0.1.5",
   "private": true,
   "type": "module",
   "description": "Baselode Viewer — desktop drilling-data viewer by Darkmine, powered by the baselode library.",
