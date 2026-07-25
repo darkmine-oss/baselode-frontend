@@ -258,6 +258,12 @@ function parseCollars(csvText) {
     const lng = parseFloat(s.longitude);
     const easting = parseFloat(s.easting);
     const northing = parseFloat(s.northing);
+    // Collar elevation (RL, metres). standardizeColumns folds elevation / rl /
+    // elev / z onto `elevation`. NaN when the source omits it — consumers guard
+    // with Number.isFinite. The 3D scene uses it to place holes that have no
+    // desurveyed trace (collar-only) at their true height; without it such a
+    // hole can't be positioned accurately in Z and is treated as "no survey".
+    const elevation = parseFloat(s.elevation);
     const holeId = (s[HOLE_ID] || '').toString().trim();
     if (!holeId || !Number.isFinite(lat) || !Number.isFinite(lng)) return [];
     return [{
@@ -269,6 +275,7 @@ function parseCollars(csvText) {
       // when absent; consumers guard with Number.isFinite.
       easting,
       northing,
+      elevation,
       holeId,
       // Leave empty when the source has no project_id / dataset
       // column.  Consumers that want a display fallback use `|| '—'`
