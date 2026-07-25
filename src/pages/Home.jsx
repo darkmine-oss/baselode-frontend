@@ -4,7 +4,7 @@
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router';
 import maplibregl from 'maplibre-gl';
 import Plotly from 'plotly.js-dist-min';
 import 'maplibre-gl/dist/maplibre-gl.css';

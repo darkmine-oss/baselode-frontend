@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 import { useRef } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation } from 'react-router';
 import './Sidebar.css';
 import { useZoomContext } from '../context/ZoomContext.jsx';
 import { useProjectData } from '../context/ProjectDataContext.jsx';

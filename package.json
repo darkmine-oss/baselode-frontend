@@ -26,7 +26,7 @@
     "proj4": "*",
     "react": "*",
     "react-dom": "*",
-    "react-router-dom": "*",
+    "react-router": "*",
     "three": "*",
     "three-viewport-gizmo": "*"
   },
