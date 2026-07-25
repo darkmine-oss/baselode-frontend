@@ -1,6 +1,6 @@
 [package]
 name = "baselode-viewer"
-version = "0.1.0"
+version = "0.1.1"
 description = "Baselode Viewer — drilling-data viewer by Darkmine"
 authors = ["Darkmine Pty Ltd"]
 license = "GPL-3.0-or-later"
