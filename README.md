@@ -4,7 +4,7 @@ Desktop drilling-data viewer by **[Darkmine](https://darkmine.ai)**, built as a 
 in [Tauri v2](https://v2.tauri.app/) for distribution as a native Windows `.exe`
 (and macOS / Linux binaries). The UI is a lightweight wrapper around the
 [`baselode`](https://www.npmjs.com/package/baselode) library — open a project
-folder of CSVs and explore the holes on a map, in 3D, and as strip logs.
+folder of csv or parquet files, and explore the holes on a map, in 3D, and as strip logs.
 
 ## Opening the app on macOS
 
