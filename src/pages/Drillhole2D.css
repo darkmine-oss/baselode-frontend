@@ -149,6 +149,35 @@
   accent-color: hsl(var(--accent));
 }
 
+.strip-log-depth-range {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+
+.strip-log-depth-range label {
+  display: grid;
+  gap: 3px;
+  font-size: 11px;
+  color: var(--color-on-surface-variant);
+}
+
+.strip-log-depth-range input {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  border: var(--border-hairline) solid var(--color-outline-variant);
+  background: var(--color-surface-container);
+  color: var(--color-on-surface);
+  padding: 4px 6px;
+  font: inherit;
+}
+
+.strip-log-range-error {
+  font-size: 11px;
+  color: var(--color-error, #b3261e);
+}
+
 .page-empty-state {
   flex: 1;
   display: flex;

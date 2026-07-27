@@ -61,6 +61,9 @@ function Drillhole2D() {
 
   const [plotCount, setPlotCount] = useState(readInitialPlotCount);
   const [alignDepthAxes, setAlignDepthAxes] = useState(false);
+  const [alignDepthRange, setAlignDepthRange] = useState(false);
+  const [rangeStart, setRangeStart] = useState('0');
+  const [rangeEnd, setRangeEnd] = useState('1000');
   useEffect(() => {
     try { localStorage.setItem(PLOT_COUNT_KEY, String(plotCount)); } catch (e) { /* ignore */ }
   }, [plotCount]);
@@ -197,6 +200,24 @@ function Drillhole2D() {
   const controlsTarget = typeof document !== 'undefined' ? document.getElementById('strip-log-controls-slot') : null;
   const firstPanelHoleId = traceGraphs[0]?.config?.holeId || '';
   const canApplyFirstHole = plotCount >= 2 && Boolean(firstPanelHoleId);
+  const parsedDepthRange = useMemo(() => {
+    const from = Number(rangeStart);
+    const to = Number(rangeEnd);
+    return Number.isFinite(from) && Number.isFinite(to) && from >= 0 && to > from ? [from, to] : null;
+  }, [rangeStart, rangeEnd]);
+  const applyDepthRange = (enabled, range = parsedDepthRange) => {
+    if (enabled && !range) return;
+    setAlignDepthRange(enabled);
+    Array.from({ length: plotCount }).forEach((_, index) => {
+      setStripPanel(index, { depthRange: enabled ? range : null, ...(enabled ? { startFromZero: false } : {}) });
+    });
+  };
+  useEffect(() => {
+    if (!alignDepthRange || !parsedDepthRange) return;
+    Array.from({ length: plotCount }).forEach((_, index) => {
+      setStripPanel(index, { depthRange: parsedDepthRange, startFromZero: false });
+    });
+  }, [alignDepthRange, parsedDepthRange, plotCount, setStripPanel]);
   const sidebarControls = (
     <div className="strip-log-controls">
       <div className="label-caps">Strip log</div>
@@ -213,7 +234,7 @@ function Drillhole2D() {
       </label>
       <button
         type="button"
-        className="secondary-button strip-log-apply-hole"
+        className="primary-button strip-log-apply-hole"
         disabled={!canApplyFirstHole}
         title={canApplyFirstHole ? 'Apply plot 1’s selected hole to every plot' : 'Select a hole in plot 1 and use at least two plots'}
         onClick={() => {
@@ -222,7 +243,7 @@ function Drillhole2D() {
           });
         }}
       >
-        Apply first plot hole to all plots
+        Apply first hole to all graphs
       </button>
       <label className="strip-log-control strip-log-checkbox">
         <input
@@ -231,11 +252,36 @@ function Drillhole2D() {
           onChange={(event) => {
             const next = event.target.checked;
             setAlignDepthAxes(next);
+            if (next) applyDepthRange(false);
             Array.from({ length: plotCount }).forEach((_, index) => setStripPanel(index, { startFromZero: next }));
           }}
         />
-        <span>Align all graphs to collar depth (0 m)</span>
+        <span>Start all graphs at 0</span>
       </label>
+      <label className="strip-log-control strip-log-checkbox">
+        <input
+          type="checkbox"
+          checked={alignDepthRange}
+          disabled={!parsedDepthRange}
+          onChange={(event) => {
+            const next = event.target.checked;
+            if (next) setAlignDepthAxes(false);
+            applyDepthRange(next);
+          }}
+        />
+        <span>Align all graphs to depth range</span>
+      </label>
+      <div className="strip-log-depth-range" aria-label="Shared strip log depth range">
+        <label>
+          <span>From (m)</span>
+          <input type="number" min="0" step="any" value={rangeStart} onChange={(event) => setRangeStart(event.target.value)} />
+        </label>
+        <label>
+          <span>To (m)</span>
+          <input type="number" min="0" step="any" value={rangeEnd} onChange={(event) => setRangeEnd(event.target.value)} />
+        </label>
+      </div>
+      {!parsedDepthRange && <div className="strip-log-range-error">Enter an end depth greater than the start depth.</div>}
     </div>
   );
 
@@ -267,6 +313,7 @@ function Drillhole2D() {
               stepped: panelCache.stepped === true,
               fillArea: panelCache.fillArea === true,
               startFromZero: panelCache.startFromZero === true,
+              depthRange: panelCache.depthRange || null,
             };
             return (
               <TracePlot
