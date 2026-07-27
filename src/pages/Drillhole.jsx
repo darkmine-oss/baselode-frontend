@@ -407,6 +407,7 @@ function Drillhole() {
     if (!file || !sceneRef.current?.scene) return;
     setObjError('');
     try {
+      const hadHoles = holes.length > 0;
       const text = await file.text();
       const group = new OBJLoader().parse(text);
       // Georeference into the local frame when the mesh's coordinates land
@@ -420,7 +421,12 @@ function Drillhole() {
       sceneRef.current.scene.add(group);
       objMeshGroupsRef.current.set(id, group);
       reconcileSceneBounds(sceneRef.current, holes, objMeshGroupsRef.current);
-      sceneRef.current.focusOnLastBounds?.(1.2);
+      // Keep existing drillholes in view when adding a mesh. A large or
+      // spatially separate OBJ can make the combined bounds enormous, and
+      // refitting here makes the holes appear to disappear. When the OBJ is
+      // the first content, frame it as before; users can always use the
+      // explicit Fit to scene control after adding more content.
+      if (!hadHoles) sceneRef.current.focusOnLastBounds?.(1.2);
       // The mesh is now framed content: without this, adding the first hole
       // afterwards would count as "first content" and refit the camera to
       // hole-only bounds, throwing the loaded mesh out of view.
