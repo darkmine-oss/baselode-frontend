@@ -345,7 +345,7 @@ function Drillhole() {
     const zOffset = Number.isFinite(collarElevation) ? collarElevation : 0;
     const pts = (h.points || [])
       .map((p) => {
-        const xy = project(p.lat ?? 0, p.lng ?? 0);
+        const xy = utmToLocal?.projectLatLng(p.lat ?? 0, p.lng ?? 0) || project(p.lat ?? 0, p.lng ?? 0);
         if (!Number.isFinite(xy.x) || !Number.isFinite(xy.y) || !Number.isFinite(p.z)) return null;
         return { x: xy.x, y: xy.y, z: zOffset + p.z, md: p.md };
       })
@@ -380,14 +380,14 @@ function Drillhole() {
       setAddError(`No collar elevation for ${holeId}.`);
       return;
     }
-    const xy = project(collar.lat, collar.lng);
+    const xy = utmToLocal?.projectLatLng(collar.lat, collar.lng) || project(collar.lat, collar.lng);
     if (!Number.isFinite(xy?.x) || !Number.isFinite(xy?.y)) {
       setAddError(`Could not project collar for ${holeId}.`);
       return;
     }
     const entry = { id: holeId, project: collar.project, points: [{ x: xy.x, y: xy.y, z, md: 0 }] };
     setHoles((prev) => (prev.some((h) => h.id === entry.id) ? prev : [...prev, entry]));
-  }, [collars, project]);
+  }, [collars, project, utmToLocal]);
 
   const removeHoleFromScene = useCallback((holeId) => {
     setHoles((prev) => prev.filter((h) => h.id !== holeId));
@@ -407,6 +407,7 @@ function Drillhole() {
     if (!file || !sceneRef.current?.scene) return;
     setObjError('');
     try {
+      const hadHoles = holes.length > 0;
       const text = await file.text();
       const group = new OBJLoader().parse(text);
       // Georeference into the local frame when the mesh's coordinates land
@@ -420,7 +421,12 @@ function Drillhole() {
       sceneRef.current.scene.add(group);
       objMeshGroupsRef.current.set(id, group);
       reconcileSceneBounds(sceneRef.current, holes, objMeshGroupsRef.current);
-      sceneRef.current.focusOnLastBounds?.(1.2);
+      // Keep existing drillholes in view when adding a mesh. A large or
+      // spatially separate OBJ can make the combined bounds enormous, and
+      // refitting here makes the holes appear to disappear. When the OBJ is
+      // the first content, frame it as before; users can always use the
+      // explicit Fit to scene control after adding more content.
+      if (!hadHoles) sceneRef.current.focusOnLastBounds?.(1.2);
       // The mesh is now framed content: without this, adding the first hole
       // afterwards would count as "first content" and refit the camera to
       // hole-only bounds, throwing the loaded mesh out of view.
@@ -1030,11 +1036,7 @@ function setSceneViewState(scene, viewState) {
 
 function recenterCameraToOriginZUp(scene, distance = 1000) {
   if (!scene?.camera || !scene?.controls) return;
-  // Recentre on the content, not the world origin. The local frame's origin is
-  // the collar centroid, which can be kilometres from the holes/meshes actually
-  // in view, so targeting (0,0,0) would strand the user looking at empty space
-  // and leave rotation pivoting far from anything visible.
-  const target = scene.lastBounds ? centerFromBounds(scene.lastBounds) : new THREE.Vector3(0, 0, 0);
+  const target = new THREE.Vector3(0, 0, 0);
   scene.controls.target.copy(target);
   scene.camera.position.set(target.x + distance, target.y + distance, target.z + distance);
   enforceZUpOrbit(scene);
@@ -1094,9 +1096,24 @@ function fitUtmToLocalTransform(collars, project) {
   if (!project) return null;
   const pts = [];
   let minE = Infinity, minN = Infinity, maxE = -Infinity, maxN = -Infinity;
+  const longitudes = (collars || []).map((collar) => Number(collar?.lng)).filter(Number.isFinite);
+  const meanLongitude = longitudes.length
+    ? longitudes.reduce((sum, longitude) => sum + longitude, 0) / longitudes.length
+    : null;
+  const utmZone = Number.isFinite(meanLongitude)
+    ? Math.floor((meanLongitude + 180) / 6) + 1
+    : null;
   (collars || []).forEach((c) => {
-    const e = Number(c?.easting);
-    const n = Number(c?.northing);
+    let e = Number(c?.easting);
+    let n = Number(c?.northing);
+    // Many collar exports carry only WGS84 lat/lng while OBJ exports use
+    // projected MGA/UTM coordinates. Derive the projected control points so
+    // the OBJ can still be fitted into the local collar frame.
+    if ((!Number.isFinite(e) || !Number.isFinite(n)) && Number.isFinite(utmZone)) {
+      const projected = latLngToUtm(c.lat, c.lng, utmZone);
+      e = projected?.easting;
+      n = projected?.northing;
+    }
     if (!Number.isFinite(e) || !Number.isFinite(n)) return;
     const local = project(c.lat, c.lng);
     if (!Number.isFinite(local?.x) || !Number.isFinite(local?.y)) return;
@@ -1129,8 +1146,53 @@ function fitUtmToLocalTransform(collars, project) {
 
   return {
     apply: (e, n) => ({ x: a * e - b * n + tx, y: b * e + a * n + ty }),
+    projectLatLng: (latitude, longitude) => {
+      const projected = latLngToUtm(latitude, longitude, utmZone);
+      return projected ? { x: a * projected.easting - b * projected.northing + tx, y: b * projected.easting + a * projected.northing + ty } : null;
+    },
+    zone: utmZone,
     bbox: { minE, minN, maxE, maxN },
   };
+}
+
+function latLngToUtm(latitude, longitude, zone) {
+  const lat = Number(latitude);
+  const lng = Number(longitude);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng) || !Number.isFinite(zone)) return null;
+  const radians = Math.PI / 180;
+  const phi = lat * radians;
+  const lambda = lng * radians;
+  const centralMeridian = ((zone - 1) * 6 - 180 + 3) * radians;
+  const semiMajor = 6378137;
+  const eccentricitySquared = 0.0066943799901413165;
+  const eccentricityPrimeSquared = eccentricitySquared / (1 - eccentricitySquared);
+  const scale = 0.9996;
+  const sinPhi = Math.sin(phi);
+  const cosPhi = Math.cos(phi);
+  const tanPhi = Math.tan(phi);
+  const radius = semiMajor / Math.sqrt(1 - eccentricitySquared * sinPhi * sinPhi);
+  const tangent = tanPhi * tanPhi;
+  const curvature = eccentricityPrimeSquared * cosPhi * cosPhi;
+  const deltaLambda = cosPhi * (lambda - centralMeridian);
+  const meridional = semiMajor * (
+    (1 - eccentricitySquared / 4 - 3 * eccentricitySquared ** 2 / 64 - 5 * eccentricitySquared ** 3 / 256) * phi
+      - (3 * eccentricitySquared / 8 + 3 * eccentricitySquared ** 2 / 32 + 45 * eccentricitySquared ** 3 / 1024) * Math.sin(2 * phi)
+      + (15 * eccentricitySquared ** 2 / 256 + 45 * eccentricitySquared ** 3 / 1024) * Math.sin(4 * phi)
+      - (35 * eccentricitySquared ** 3 / 3072) * Math.sin(6 * phi)
+  );
+  const easting = scale * radius * (
+    deltaLambda + (1 - tangent + curvature) * deltaLambda ** 3 / 6
+      + (5 - 18 * tangent + tangent ** 2 + 72 * curvature - 58 * eccentricityPrimeSquared) * deltaLambda ** 5 / 120
+  ) + 500000;
+  let northing = scale * (
+    meridional + radius * tanPhi * (
+      deltaLambda ** 2 / 2
+      + (5 - tangent + 9 * curvature + 4 * curvature ** 2) * deltaLambda ** 4 / 24
+      + (61 - 58 * tangent + tangent ** 2 + 600 * curvature - 330 * eccentricityPrimeSquared) * deltaLambda ** 6 / 720
+    )
+  );
+  if (lat < 0) northing += 10000000;
+  return { easting, northing };
 }
 
 // Whether a horizontal coordinate lands inside the project's grid extent (with a
