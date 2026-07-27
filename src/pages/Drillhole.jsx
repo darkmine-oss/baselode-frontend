@@ -1036,11 +1036,7 @@ function setSceneViewState(scene, viewState) {
 
 function recenterCameraToOriginZUp(scene, distance = 1000) {
   if (!scene?.camera || !scene?.controls) return;
-  // Recentre on the content, not the world origin. The local frame's origin is
-  // the collar centroid, which can be kilometres from the holes/meshes actually
-  // in view, so targeting (0,0,0) would strand the user looking at empty space
-  // and leave rotation pivoting far from anything visible.
-  const target = scene.lastBounds ? centerFromBounds(scene.lastBounds) : new THREE.Vector3(0, 0, 0);
+  const target = new THREE.Vector3(0, 0, 0);
   scene.controls.target.copy(target);
   scene.camera.position.set(target.x + distance, target.y + distance, target.z + distance);
   enforceZUpOrbit(scene);
