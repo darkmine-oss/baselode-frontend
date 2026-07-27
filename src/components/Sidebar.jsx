@@ -105,6 +105,7 @@ function Sidebar() {
       <div id="map-controls-slot" className="sidebar-slot" />
       <div id="strip-log-controls-slot" className="sidebar-slot" />
       <div id="three-d-controls-slot" className="sidebar-slot" />
+      <div id="analytics-controls-slot" className="sidebar-slot" />
 
       <div className="sidebar-footer">
         <div id="data-source-slot" className="data-source-info" />

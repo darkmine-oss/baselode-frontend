@@ -110,7 +110,9 @@ function Drillhole2D() {
     () => labeledHoleOptions.map((option) => ({
       ...option,
       project: holeToProject.get(option.holeId) || '',
-    })),
+    })).sort((a, b) => String(a.label || a.holeId).localeCompare(
+      String(b.label || b.holeId), undefined, { sensitivity: 'base' }
+    )),
     [labeledHoleOptions, holeToProject],
   );
 
@@ -191,6 +193,8 @@ function Drillhole2D() {
   );
 
   const controlsTarget = typeof document !== 'undefined' ? document.getElementById('strip-log-controls-slot') : null;
+  const firstPanelHoleId = traceGraphs[0]?.config?.holeId || '';
+  const canApplyFirstHole = plotCount >= 2 && Boolean(firstPanelHoleId);
   const sidebarControls = (
     <div className="strip-log-controls">
       <div className="label-caps">Strip log</div>
@@ -205,6 +209,19 @@ function Drillhole2D() {
           onChange={(e) => setPlotCount(clampPlotCount(e.target.value))}
         />
       </label>
+      <button
+        type="button"
+        className="secondary-button strip-log-apply-hole"
+        disabled={!canApplyFirstHole}
+        title={canApplyFirstHole ? 'Apply plot 1’s selected hole to every plot' : 'Select a hole in plot 1 and use at least two plots'}
+        onClick={() => {
+          traceGraphs.forEach((graph, index) => {
+            if (index > 0 && graph?.config?.holeId !== firstPanelHoleId) handleConfigChange(index, { holeId: firstPanelHoleId });
+          });
+        }}
+      >
+        Apply first plot hole to all plots
+      </button>
     </div>
   );
 
