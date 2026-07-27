@@ -15,6 +15,7 @@ import './Drillhole2D.css';
 import { useProjectData } from '../context/ProjectDataContext.jsx';
 import { useTheme } from '../context/ThemeContext.jsx';
 import { useStripLogSelections } from '../context/StripLogSelectionsContext.jsx';
+import { buildCategoricalColorMap } from '../lib/categoricalColors.js';
 
 const PLOT_COUNT_KEY = 'baselode-viewer-strip-log-plot-count-v1';
 const PLOT_COUNT_MIN = 1;
@@ -38,7 +39,7 @@ function readInitialPlotCount() {
 function Drillhole2D() {
   const location = useLocation();
   const { theme } = useTheme();
-  const { collars, combinedHoles, status } = useProjectData();
+  const { collars, combinedHoles, geologyHoles, rawCsv, status } = useProjectData();
   const {
     selections: stripCache,
     setAllConfigs: setStripCache,
@@ -59,6 +60,7 @@ function Drillhole2D() {
   }, [theme]);
 
   const [plotCount, setPlotCount] = useState(readInitialPlotCount);
+  const [alignDepthAxes, setAlignDepthAxes] = useState(false);
   useEffect(() => {
     try { localStorage.setItem(PLOT_COUNT_KEY, String(plotCount)); } catch (e) { /* ignore */ }
   }, [plotCount]);
@@ -222,6 +224,18 @@ function Drillhole2D() {
       >
         Apply first plot hole to all plots
       </button>
+      <label className="strip-log-control strip-log-checkbox">
+        <input
+          type="checkbox"
+          checked={alignDepthAxes}
+          onChange={(event) => {
+            const next = event.target.checked;
+            setAlignDepthAxes(next);
+            Array.from({ length: plotCount }).forEach((_, index) => setStripPanel(index, { startFromZero: next }));
+          }}
+        />
+        <span>Align all graphs to collar depth (0 m)</span>
+      </label>
     </div>
   );
 
@@ -293,6 +307,7 @@ function Drillhole2D() {
                   if (Object.keys(gridPatch).length) handleConfigChange(idx, gridPatch);
                 }}
                 template={template}
+                colourMap={buildCategoricalColorMap(geologyHoles, rawCsv?.colors, graph?.config?.property)}
               />
             );
           })}

@@ -5,7 +5,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router';
-import maplibregl from 'maplibre-gl';
+// MapLibre 6 is ESM-only and exposes its API as named exports.  Namespace
+// import keeps the existing `maplibregl.Map` / `Popup` call sites intact.
+import * as maplibregl from 'maplibre-gl';
 import Plotly from 'plotly.js-dist-min';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import './Home.css';

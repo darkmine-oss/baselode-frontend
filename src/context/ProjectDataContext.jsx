@@ -16,6 +16,7 @@ import {
 import { isTauri, pickProjectFolder, readProjectFolder, readProjectFromFileList } from '../lib/projectIo.js';
 import { buildSurveyStationIndex, resolveDipAzimuthRows } from '../lib/structuralOrientation.js';
 import { parseSurfaceSamples } from '../lib/surfaceSamplesIo.js';
+import { buildCategoricalColorMap } from '../lib/categoricalColors.js';
 
 const LAST_PROJECT_KEY = 'baselode-viewer-last-project';
 
@@ -29,7 +30,8 @@ const initial = {
   structureRows: null,
   geologyHoles: [],
   surfaceSamples: [],
-  rawCsv: { precomputed: null, survey: null },
+  categoricalColorMap: {},
+  rawCsv: { precomputed: null, survey: null, colors: null },
   formats: {},
   openProject: async () => {},
   openProjectFromFileList: async () => {},
@@ -42,7 +44,7 @@ export function ProjectDataProvider({ children }) {
   const [state, setState] = useState(initial);
 
   const closeProject = useCallback(() => {
-    setState((s) => ({ ...s, status: 'idle', folderPath: '', errors: {}, collars: [], assayState: null, combinedHoles: [], structureRows: null, geologyHoles: [], surfaceSamples: [], rawCsv: { precomputed: null, survey: null }, formats: {} }));
+    setState((s) => ({ ...s, status: 'idle', folderPath: '', errors: {}, collars: [], assayState: null, combinedHoles: [], structureRows: null, geologyHoles: [], surfaceSamples: [], categoricalColorMap: {}, rawCsv: { precomputed: null, survey: null, colors: null }, formats: {} }));
     try {
       localStorage.removeItem(LAST_PROJECT_KEY);
     } catch (e) {
@@ -65,7 +67,8 @@ export function ProjectDataProvider({ children }) {
         structureRows: parsed.structureRows,
         geologyHoles: parsed.geologyHoles,
         surfaceSamples: parsed.surfaceSamples,
-        rawCsv: { precomputed: read.files.precomputed_desurveyed || null, survey: read.files.survey || null },
+        categoricalColorMap: parsed.categoricalColorMap,
+        rawCsv: { precomputed: read.files.precomputed_desurveyed || null, survey: read.files.survey || null, colors: read.files.colors || null },
         formats: read.formats || {},
       }));
       if (read.folderPath) {
@@ -210,6 +213,7 @@ async function parseProject(read) {
       errors.surface_samples = e?.message || String(e);
     }
   }
+  const categoricalColorMap = buildCategoricalColorMap(geologyHoles, files.colors);
 
   return {
     collars,
@@ -218,6 +222,7 @@ async function parseProject(read) {
     structureRows,
     geologyHoles,
     surfaceSamples,
+    categoricalColorMap,
     errors,
   };
 }
