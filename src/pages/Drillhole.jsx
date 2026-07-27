@@ -345,7 +345,7 @@ function Drillhole() {
     const zOffset = Number.isFinite(collarElevation) ? collarElevation : 0;
     const pts = (h.points || [])
       .map((p) => {
-        const xy = project(p.lat ?? 0, p.lng ?? 0);
+        const xy = utmToLocal?.projectLatLng(p.lat ?? 0, p.lng ?? 0) || project(p.lat ?? 0, p.lng ?? 0);
         if (!Number.isFinite(xy.x) || !Number.isFinite(xy.y) || !Number.isFinite(p.z)) return null;
         return { x: xy.x, y: xy.y, z: zOffset + p.z, md: p.md };
       })
@@ -380,14 +380,14 @@ function Drillhole() {
       setAddError(`No collar elevation for ${holeId}.`);
       return;
     }
-    const xy = project(collar.lat, collar.lng);
+    const xy = utmToLocal?.projectLatLng(collar.lat, collar.lng) || project(collar.lat, collar.lng);
     if (!Number.isFinite(xy?.x) || !Number.isFinite(xy?.y)) {
       setAddError(`Could not project collar for ${holeId}.`);
       return;
     }
     const entry = { id: holeId, project: collar.project, points: [{ x: xy.x, y: xy.y, z, md: 0 }] };
     setHoles((prev) => (prev.some((h) => h.id === entry.id) ? prev : [...prev, entry]));
-  }, [collars, project]);
+  }, [collars, project, utmToLocal]);
 
   const removeHoleFromScene = useCallback((holeId) => {
     setHoles((prev) => prev.filter((h) => h.id !== holeId));
@@ -1146,6 +1146,11 @@ function fitUtmToLocalTransform(collars, project) {
 
   return {
     apply: (e, n) => ({ x: a * e - b * n + tx, y: b * e + a * n + ty }),
+    projectLatLng: (latitude, longitude) => {
+      const projected = latLngToUtm(latitude, longitude, utmZone);
+      return projected ? { x: a * projected.easting - b * projected.northing + tx, y: b * projected.easting + a * projected.northing + ty } : null;
+    },
+    zone: utmZone,
     bbox: { minE, minN, maxE, maxN },
   };
 }
