@@ -256,7 +256,7 @@ function Drillhole2D() {
             Array.from({ length: plotCount }).forEach((_, index) => setStripPanel(index, { startFromZero: next }));
           }}
         />
-        <span>Align all graphs to collar depth (0 m)</span>
+        <span>Start all graphs at 0</span>
       </label>
       <label className="strip-log-control strip-log-checkbox">
         <input
@@ -269,7 +269,7 @@ function Drillhole2D() {
             applyDepthRange(next);
           }}
         />
-        <span>Align all graphs to a depth range</span>
+        <span>Align all graphs to depth range</span>
       </label>
       <div className="strip-log-depth-range" aria-label="Shared strip log depth range">
         <label>
