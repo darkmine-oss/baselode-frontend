@@ -3,6 +3,7 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Link } from 'react-router';
 import Plotly from 'plotly.js-dist-min';
 import {
@@ -50,12 +51,13 @@ function plotErrorMessage(error) {
   return detail ? `Plot render failed: ${detail}` : 'Plot render failed.';
 }
 
-function flattenAssayRows(combinedHoles) {
+function flattenAssayRows(combinedHoles, includedHoleIds) {
   const flattened = [];
   for (const hole of combinedHoles || []) {
     // parseUnifiedDataset returns `{ holeId, points }` per hole, with
     // each point tagged `_source: 'assay' | 'structural' | 'geology'`.
     const holeId = hole?.holeId ?? hole?.id ?? hole?.hole_id;
+    if (!includedHoleIds.has(holeId)) continue;
     const points = hole?.points ?? hole?.rows ?? [];
     for (const row of points) {
       if (!row || row._source !== 'assay') continue;
@@ -226,16 +228,39 @@ function SourceToggle({ source, setSource, options }) {
 }
 
 function AnalyticsPlots() {
-  const { status, combinedHoles, surfaceSamples } = useProjectData();
+  const { status, collars, combinedHoles, surfaceSamples } = useProjectData();
   const { theme } = useTheme();
   const useDarkTemplate = theme === 'dark';
 
   // Picks live in a layout-level context so navigating away and back
   // doesn't reset what the user has chosen.
-  const { selections, setSource, setPlot } = useAnalyticsSelections();
+  const { selections, setSource, setPlot, addLoadedProject, removeLoadedProject, addLoadedHole, removeLoadedHole, clearLoadedDrillholes } = useAnalyticsSelections();
   const { source, scatter, histogram, box, violin, ternary } = selections;
+  const [holeProjectFilter, setHoleProjectFilter] = useState('');
+  const [holeToLoad, setHoleToLoad] = useState('');
 
-  const assayRows = useMemo(() => flattenAssayRows(combinedHoles), [combinedHoles]);
+  const collarProjects = useMemo(() => {
+    const byProject = new Map();
+    for (const collar of collars || []) {
+      const id = collar?.holeId;
+      const project = (collar?.project || '').trim();
+      if (!id || !project) continue;
+      if (!byProject.has(project)) byProject.set(project, []);
+      byProject.get(project).push(id);
+    }
+    return [...byProject.entries()].map(([id, holeIds]) => ({ id, holeIds: [...new Set(holeIds)].sort() })).sort((a, b) => a.id.localeCompare(b.id));
+  }, [collars]);
+  const filteredHoleIds = useMemo(() => {
+    const project = collarProjects.find((entry) => entry.id === holeProjectFilter);
+    return project?.holeIds || [];
+  }, [collarProjects, holeProjectFilter]);
+  const includedHoleIds = useMemo(() => {
+    const ids = new Set(selections.loadedHoleIds);
+    for (const project of collarProjects) if (selections.loadedProjectIds.includes(project.id)) project.holeIds.forEach((id) => ids.add(id));
+    return ids;
+  }, [selections.loadedHoleIds, selections.loadedProjectIds, collarProjects]);
+
+  const assayRows = useMemo(() => flattenAssayRows(combinedHoles, includedHoleIds), [combinedHoles, includedHoleIds]);
   const surfaceRows = useMemo(() => surfaceSamples || [], [surfaceSamples]);
 
   const sources = useMemo(() => {
@@ -250,6 +275,38 @@ function AnalyticsPlots() {
     }
     return out;
   }, [assayRows, surfaceRows]);
+
+  const analyticsControlsTarget = typeof document !== 'undefined' ? document.getElementById('analytics-controls-slot') : null;
+  const analyticsControls = (
+    <div className="analytics-load-controls">
+      <div className="label-caps">Analytics data</div>
+      <label className="analytics-load-control"><span>Load entire project</span>
+        <select value="" onChange={(event) => addLoadedProject(event.target.value)}>
+          <option value="">Select project…</option>
+          {collarProjects.map((project) => <option key={project.id} value={project.id}>{project.id} ({project.holeIds.length})</option>)}
+        </select>
+      </label>
+      <label className="analytics-load-control"><span>Filter single holes by project</span>
+        <select value={holeProjectFilter} onChange={(event) => { setHoleProjectFilter(event.target.value); setHoleToLoad(''); }}>
+          <option value="">Select project first…</option>
+          {collarProjects.map((project) => <option key={project.id} value={project.id}>{project.id} ({project.holeIds.length})</option>)}
+        </select>
+      </label>
+      <label className="analytics-load-control"><span>Load single hole</span>
+        <select value={holeToLoad} disabled={!holeProjectFilter} onChange={(event) => setHoleToLoad(event.target.value)}>
+          <option value="">{holeProjectFilter ? 'Select hole…' : 'Choose a project above first…'}</option>
+          {filteredHoleIds.map((id) => <option key={id} value={id}>{id}</option>)}
+        </select>
+      </label>
+      <button type="button" className="secondary-button" disabled={!holeToLoad} onClick={() => { addLoadedHole(holeToLoad); setHoleToLoad(''); }}>Add hole</button>
+      {(selections.loadedProjectIds.length > 0 || selections.loadedHoleIds.length > 0) && <>
+        <div className="analytics-load-summary">{selections.loadedProjectIds.length} project{selections.loadedProjectIds.length === 1 ? '' : 's'}, {includedHoleIds.size} hole{includedHoleIds.size === 1 ? '' : 's'} loaded</div>
+        {selections.loadedProjectIds.map((id) => <button key={id} type="button" className="ghost-button small" onClick={() => removeLoadedProject(id)}>Remove project {id}</button>)}
+        {selections.loadedHoleIds.map((id) => <button key={id} type="button" className="ghost-button small" onClick={() => removeLoadedHole(id)}>Remove hole {id}</button>)}
+        <button type="button" className="ghost-button small" onClick={clearLoadedDrillholes}>Clear drillhole data</button>
+      </>}
+    </div>
+  );
 
   useEffect(() => {
     if (!source && sources.length) setSource(sources[0].key);
@@ -353,15 +410,18 @@ function AnalyticsPlots() {
 
   if (!sources.length) {
     return (
-      <div className="analytics-page">
-        <p className="analytics-status">
-          The loaded project doesn't carry plottable data.  Add an{' '}
-          <code>assays.csv</code> / <code>assays.parquet</code> or a{' '}
-          <code>surface_samples.csv</code> / <code>surface_samples.parquet</code>{' '}
-          to your project folder to enable this page.{' '}
-          <Link to="/data-instructions">Project format →</Link>
-        </p>
-      </div>
+      <>
+        <div className="analytics-page">
+          <p className="analytics-status">
+            {includedHoleIds.size === 0 ? 'Choose a project or hole from the Analytics data controls to load drillhole data. ' : 'The selected drillhole scope has no plottable assay data. '}Add an{' '}
+            <code>assays.csv</code> / <code>assays.parquet</code> or a{' '}
+            <code>surface_samples.csv</code> / <code>surface_samples.parquet</code>{' '}
+            to your project folder to enable this page.{' '}
+            <Link to="/data-instructions">Project format →</Link>
+          </p>
+        </div>
+        {analyticsControlsTarget && createPortal(analyticsControls, analyticsControlsTarget)}
+      </>
     );
   }
 
@@ -478,6 +538,7 @@ function AnalyticsPlots() {
         layout={ternaryConfig.layout}
         height={480}
       />
+      {analyticsControlsTarget && createPortal(analyticsControls, analyticsControlsTarget)}
     </div>
   );
 }

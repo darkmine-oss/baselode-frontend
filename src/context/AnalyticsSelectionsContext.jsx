@@ -10,6 +10,8 @@ import { createContext, useCallback, useContext, useMemo, useState } from 'react
 
 const INITIAL = {
   source: '',
+  loadedProjectIds: [],
+  loadedHoleIds: [],
   scatter: { x: '', y: '', colorBy: '', logX: true, logY: true },
   histogram: { prop: '', groupBy: '', logY: true, barmode: 'overlay' },
   box: { prop: '', groupBy: '', logY: true },
@@ -59,9 +61,31 @@ export function AnalyticsSelectionsProvider({ children }) {
     });
   }, []);
 
+  const addLoadedProject = useCallback((projectId) => {
+    if (!projectId) return;
+    setSelections((current) => current.loadedProjectIds.includes(projectId) ? current : {
+      ...current, loadedProjectIds: [...current.loadedProjectIds, projectId],
+    });
+  }, []);
+  const removeLoadedProject = useCallback((projectId) => {
+    setSelections((current) => ({ ...current, loadedProjectIds: current.loadedProjectIds.filter((id) => id !== projectId) }));
+  }, []);
+  const addLoadedHole = useCallback((holeId) => {
+    if (!holeId) return;
+    setSelections((current) => current.loadedHoleIds.includes(holeId) ? current : {
+      ...current, loadedHoleIds: [...current.loadedHoleIds, holeId],
+    });
+  }, []);
+  const removeLoadedHole = useCallback((holeId) => {
+    setSelections((current) => ({ ...current, loadedHoleIds: current.loadedHoleIds.filter((id) => id !== holeId) }));
+  }, []);
+  const clearLoadedDrillholes = useCallback(() => {
+    setSelections((current) => ({ ...current, loadedProjectIds: [], loadedHoleIds: [] }));
+  }, []);
+
   const value = useMemo(
-    () => ({ selections, setSource, setPlot, resetPlotPicks }),
-    [selections, setSource, setPlot, resetPlotPicks],
+    () => ({ selections, setSource, setPlot, resetPlotPicks, addLoadedProject, removeLoadedProject, addLoadedHole, removeLoadedHole, clearLoadedDrillholes }),
+    [selections, setSource, setPlot, resetPlotPicks, addLoadedProject, removeLoadedProject, addLoadedHole, removeLoadedHole, clearLoadedDrillholes],
   );
 
   return (
