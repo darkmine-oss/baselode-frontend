@@ -243,7 +243,7 @@ function Drillhole2D() {
           });
         }}
       >
-        Apply first plot hole to all plots
+        Apply first hole to all graphs
       </button>
       <label className="strip-log-control strip-log-checkbox">
         <input
