@@ -20,6 +20,7 @@ import 'baselode/style.css';
 import './Drillhole.css';
 import { useProjectData } from '../context/ProjectDataContext.jsx';
 import { makeLocalProjector } from '../lib/localProjection.js';
+import { buildCategoricalColorMap, colorForCategory } from '../lib/categoricalColors.js';
 
 // Sequential, perceptually uniform "magma"-style ramp (10 bins) — low values
 // fade into the dark scene background, high values jump out as bright gold.
@@ -103,6 +104,10 @@ function Drillhole() {
   const isCategorical = useMemo(
     () => geologyCategories.includes(colorByVariable),
     [geologyCategories, colorByVariable]
+  );
+  const categoricalColorMap = useMemo(
+    () => buildCategoricalColorMap(geologyHoles, rawCsv?.colors, colorByVariable),
+    [geologyHoles, rawCsv?.colors, colorByVariable],
   );
 
   const geologyCategoryIntervalsByHole = useMemo(() => {
@@ -502,6 +507,7 @@ function Drillhole() {
         assayIntervalsByHole: isCategorical ? geologyCategoryIntervalsByHole : selectedAssayIntervalsByHole,
         preserveView,
         isCategoricalVariable: isCategorical,
+        categoryColorMap: categoricalColorMap,
       });
       if (firstContent) enforceZUpOrbit(sceneRef.current);
       if (holes.length > 0) hasFramedContentRef.current = true;
@@ -512,7 +518,7 @@ function Drillhole() {
       // doesn't re-run for colour/interval changes.
       reconcileSceneBounds(sceneRef.current, holes, objMeshGroupsRef.current);
     }
-  }, [holes, colorByVariable, selectedAssayIntervalsByHole, isCategorical, geologyCategoryIntervalsByHole]);
+  }, [holes, colorByVariable, selectedAssayIntervalsByHole, isCategorical, geologyCategoryIntervalsByHole, categoricalColorMap]);
 
   useEffect(() => {
     if (!sceneRef.current) return;
@@ -771,7 +777,7 @@ function Drillhole() {
                 <div className="drillhole-legend-grid">
                   {cats.map((cat) => (
                     <div key={cat} className="drillhole-legend-item">
-                      <span className="drillhole-legend-swatch" style={{ background: getCategoryHexColor(cat) }} />
+                      <span className="drillhole-legend-swatch" style={{ background: colorForCategory(categoricalColorMap, cat, getCategoryHexColor(cat)) }} />
                       <span className="drillhole-legend-label">{cat}</span>
                     </div>
                   ))}

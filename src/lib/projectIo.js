@@ -30,6 +30,7 @@ export const PROJECT_FILE_KEYS = Object.freeze([
   // expected column layout (mirrors baselode.datamodel
   // BASELODE_DATA_MODEL_SURFACE_SAMPLE).
   'surface_samples',
+  'colors',
 ]);
 
 export const REQUIRED_FILES = ['collars'];

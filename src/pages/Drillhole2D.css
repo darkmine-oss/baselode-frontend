@@ -138,6 +138,17 @@
   border-color: hsl(var(--accent));
 }
 
+.strip-log-checkbox {
+  align-items: flex-start;
+  justify-content: flex-start;
+  line-height: 1.35;
+}
+
+.strip-log-checkbox input {
+  margin: 2px 0 0;
+  accent-color: hsl(var(--accent));
+}
+
 .page-empty-state {
   flex: 1;
   display: flex;
