@@ -234,7 +234,7 @@ function Drillhole2D() {
       </label>
       <button
         type="button"
-        className="secondary-button strip-log-apply-hole"
+        className="primary-button strip-log-apply-hole"
         disabled={!canApplyFirstHole}
         title={canApplyFirstHole ? 'Apply plot 1’s selected hole to every plot' : 'Select a hole in plot 1 and use at least two plots'}
         onClick={() => {
