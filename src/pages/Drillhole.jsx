@@ -1096,9 +1096,24 @@ function fitUtmToLocalTransform(collars, project) {
   if (!project) return null;
   const pts = [];
   let minE = Infinity, minN = Infinity, maxE = -Infinity, maxN = -Infinity;
+  const longitudes = (collars || []).map((collar) => Number(collar?.lng)).filter(Number.isFinite);
+  const meanLongitude = longitudes.length
+    ? longitudes.reduce((sum, longitude) => sum + longitude, 0) / longitudes.length
+    : null;
+  const utmZone = Number.isFinite(meanLongitude)
+    ? Math.floor((meanLongitude + 180) / 6) + 1
+    : null;
   (collars || []).forEach((c) => {
-    const e = Number(c?.easting);
-    const n = Number(c?.northing);
+    let e = Number(c?.easting);
+    let n = Number(c?.northing);
+    // Many collar exports carry only WGS84 lat/lng while OBJ exports use
+    // projected MGA/UTM coordinates. Derive the projected control points so
+    // the OBJ can still be fitted into the local collar frame.
+    if ((!Number.isFinite(e) || !Number.isFinite(n)) && Number.isFinite(utmZone)) {
+      const projected = latLngToUtm(c.lat, c.lng, utmZone);
+      e = projected?.easting;
+      n = projected?.northing;
+    }
     if (!Number.isFinite(e) || !Number.isFinite(n)) return;
     const local = project(c.lat, c.lng);
     if (!Number.isFinite(local?.x) || !Number.isFinite(local?.y)) return;
@@ -1133,6 +1148,46 @@ function fitUtmToLocalTransform(collars, project) {
     apply: (e, n) => ({ x: a * e - b * n + tx, y: b * e + a * n + ty }),
     bbox: { minE, minN, maxE, maxN },
   };
+}
+
+function latLngToUtm(latitude, longitude, zone) {
+  const lat = Number(latitude);
+  const lng = Number(longitude);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng) || !Number.isFinite(zone)) return null;
+  const radians = Math.PI / 180;
+  const phi = lat * radians;
+  const lambda = lng * radians;
+  const centralMeridian = ((zone - 1) * 6 - 180 + 3) * radians;
+  const semiMajor = 6378137;
+  const eccentricitySquared = 0.0066943799901413165;
+  const eccentricityPrimeSquared = eccentricitySquared / (1 - eccentricitySquared);
+  const scale = 0.9996;
+  const sinPhi = Math.sin(phi);
+  const cosPhi = Math.cos(phi);
+  const tanPhi = Math.tan(phi);
+  const radius = semiMajor / Math.sqrt(1 - eccentricitySquared * sinPhi * sinPhi);
+  const tangent = tanPhi * tanPhi;
+  const curvature = eccentricityPrimeSquared * cosPhi * cosPhi;
+  const deltaLambda = cosPhi * (lambda - centralMeridian);
+  const meridional = semiMajor * (
+    (1 - eccentricitySquared / 4 - 3 * eccentricitySquared ** 2 / 64 - 5 * eccentricitySquared ** 3 / 256) * phi
+      - (3 * eccentricitySquared / 8 + 3 * eccentricitySquared ** 2 / 32 + 45 * eccentricitySquared ** 3 / 1024) * Math.sin(2 * phi)
+      + (15 * eccentricitySquared ** 2 / 256 + 45 * eccentricitySquared ** 3 / 1024) * Math.sin(4 * phi)
+      - (35 * eccentricitySquared ** 3 / 3072) * Math.sin(6 * phi)
+  );
+  const easting = scale * radius * (
+    deltaLambda + (1 - tangent + curvature) * deltaLambda ** 3 / 6
+      + (5 - 18 * tangent + tangent ** 2 + 72 * curvature - 58 * eccentricityPrimeSquared) * deltaLambda ** 5 / 120
+  ) + 500000;
+  let northing = scale * (
+    meridional + radius * tanPhi * (
+      deltaLambda ** 2 / 2
+      + (5 - tangent + 9 * curvature + 4 * curvature ** 2) * deltaLambda ** 4 / 24
+      + (61 - 58 * tangent + tangent ** 2 + 600 * curvature - 330 * eccentricityPrimeSquared) * deltaLambda ** 6 / 720
+    )
+  );
+  if (lat < 0) northing += 10000000;
+  return { easting, northing };
 }
 
 // Whether a horizontal coordinate lands inside the project's grid extent (with a
