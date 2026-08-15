@@ -6,10 +6,14 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 import Papa from 'papaparse';
 import {
   loadAssayFile,
+  loadAssayFromRows,
   parseStructuralCSV,
+  parseStructuralFromRows,
   parseSurveyCSV,
+  parseSurveyFromRows,
   parseUnifiedDataset,
   parseGeologyCsvText,
+  parseGeologyFromRows,
   standardizeColumns,
   HOLE_ID,
 } from 'baselode';
@@ -140,12 +144,16 @@ async function parseProject(read) {
   // Collars — required.
   const collars = parseCollars(files.collars);
 
-  // Assays — load via baselode (it wants a File).
+  // Assays — Parquet rows bypass CSV serialization and parsing.
   let assayState = null;
   if (files.assays) {
     try {
-      const file = new File([new Blob([files.assays], { type: 'text/csv' })], 'assays.csv', { type: 'text/csv' });
-      assayState = await loadAssayFile(file, '');
+      if (Array.isArray(files.assays)) {
+        assayState = loadAssayFromRows(files.assays, '');
+      } else {
+        const file = new File([new Blob([files.assays], { type: 'text/csv' })], 'assays.csv', { type: 'text/csv' });
+        assayState = await loadAssayFile(file, '');
+      }
     } catch (e) {
       errors.assays = e?.message || String(e);
     }
@@ -155,7 +163,9 @@ async function parseProject(read) {
   let structureRows = null;
   if (files.structure) {
     try {
-      const parsed = await parseStructuralCSV(files.structure);
+      const parsed = Array.isArray(files.structure)
+        ? parseStructuralFromRows(files.structure)
+        : await parseStructuralCSV(files.structure);
       structureRows = parsed?.rows || null;
     } catch (e) {
       errors.structure = e?.message || String(e);
@@ -166,7 +176,9 @@ async function parseProject(read) {
   let geologyHoles = [];
   if (files.geology) {
     try {
-      const parsed = await parseGeologyCsvText(files.geology);
+      const parsed = Array.isArray(files.geology)
+        ? parseGeologyFromRows(files.geology)
+        : await parseGeologyCsvText(files.geology);
       geologyHoles = parsed?.holes || [];
     } catch (e) {
       errors.geology = e?.message || String(e);
@@ -178,9 +190,12 @@ async function parseProject(read) {
   if (files.assays || files.structure || files.geology) {
     try {
       const unified = await parseUnifiedDataset({
-        assayCsv: files.assays || '',
-        structuralCsv: files.structure || '',
-        geologyCsv: files.geology || '',
+        assayCsv: Array.isArray(files.assays) ? undefined : files.assays,
+        structuralCsv: Array.isArray(files.structure) ? undefined : files.structure,
+        geologyCsv: Array.isArray(files.geology) ? undefined : files.geology,
+        assayRows: Array.isArray(files.assays) ? files.assays : undefined,
+        structuralRows: Array.isArray(files.structure) ? files.structure : undefined,
+        geologyRows: Array.isArray(files.geology) ? files.geology : undefined,
       });
       combinedHoles = unified?.holes || [];
     } catch (e) {
@@ -193,7 +208,9 @@ async function parseProject(read) {
   // tadpole and dip/azimuth chart types work for oriented-core data.
   if (files.survey && combinedHoles.length) {
     try {
-      const surveyRows = await parseSurveyCSV(files.survey);
+      const surveyRows = Array.isArray(files.survey)
+        ? parseSurveyFromRows(files.survey)
+        : await parseSurveyCSV(files.survey);
       const stationIndex = buildSurveyStationIndex(surveyRows || []);
       combinedHoles = resolveStructuralOrientations(combinedHoles, stationIndex);
     } catch (e) {
@@ -254,10 +271,12 @@ function resolveStructuralOrientations(holes, stationIndex) {
   });
 }
 
-function parseCollars(csvText) {
-  if (!csvText) return [];
-  const { data } = Papa.parse(csvText, { header: true, skipEmptyLines: true });
-  return (data || []).flatMap((row) => {
+function parseCollars(source) {
+  if (!source) return [];
+  const rows = Array.isArray(source)
+    ? source
+    : Papa.parse(source, { header: true, skipEmptyLines: true }).data;
+  return (rows || []).flatMap((row) => {
     const s = standardizeColumns(row);
     const lat = parseFloat(s.latitude);
     const lng = parseFloat(s.longitude);

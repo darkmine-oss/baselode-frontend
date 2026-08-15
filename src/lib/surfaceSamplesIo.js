@@ -45,16 +45,28 @@ const NUMERIC_HINTS = new Set([
  * left as-is (the Analytics page does its own per-cell numeric
  * coercion).
  *
- * @param {string} csvText
+ * @param {string|Array<Object>} source - CSV text or parsed row objects
  * @returns {{ rows: Array<Object>, errors: Array<Object>, dropped: number }}
  */
-export function parseSurfaceSamples(csvText) {
-  if (!csvText) return { rows: [], errors: [], dropped: 0 };
-  const { data, errors } = Papa.parse(csvText, {
+export function parseSurfaceSamples(source) {
+  if (!source) return { rows: [], errors: [], dropped: 0 };
+  if (Array.isArray(source)) return parseSurfaceSamplesFromRows(source);
+  const { data, errors } = Papa.parse(source, {
     header: true,
     skipEmptyLines: true,
     dynamicTyping: false,
   });
+  return parseSurfaceSamplesFromRows(data, errors);
+}
+
+/**
+ * Normalize already-decoded surface-sample rows.
+ *
+ * @param {Array<Object>} data - Parsed surface-sample row objects
+ * @param {Array<Object>} errors - Optional upstream format errors
+ * @returns {{ rows: Array<Object>, errors: Array<Object>, dropped: number }}
+ */
+export function parseSurfaceSamplesFromRows(data, errors = []) {
   const rows = [];
   let dropped = 0;
   for (const raw of data || []) {
