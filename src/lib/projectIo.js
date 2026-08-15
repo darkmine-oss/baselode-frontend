@@ -37,6 +37,8 @@ const EXTENSIONS_BY_PRIORITY = ['parquet', 'csv'];
 const MAX_SAFE_BIGINT = BigInt(Number.MAX_SAFE_INTEGER);
 const MIN_SAFE_BIGINT = BigInt(Number.MIN_SAFE_INTEGER);
 const NUMERIC_TEXT = /^\s*-?(\d+\.?|\.\d+|\d+\.\d+)([eE][-+]?\d+)?\s*$/;
+const TEXT_FIELD_SUFFIX = /(^|_)(id|code|number|no)$/;
+const TEXT_FIELD_NAMES = new Set(['dataset', 'hole', 'project']);
 
 export function isTauri() {
   return typeof window !== 'undefined' && (
@@ -200,12 +202,12 @@ function normalizeParquetRows(rows) {
   for (const row of rows) {
     for (const [key, value] of Object.entries(row)) {
       if (typeof value === 'bigint') {
-        row[key] = value >= MIN_SAFE_BIGINT && value <= MAX_SAFE_BIGINT
+        row[key] = !isTextField(key) && value >= MIN_SAFE_BIGINT && value <= MAX_SAFE_BIGINT
           ? Number(value)
           : value.toString();
       } else if (value instanceof Date) {
         row[key] = value.toISOString();
-      } else if (typeof value === 'string' && NUMERIC_TEXT.test(value)) {
+      } else if (!isTextField(key) && typeof value === 'string' && NUMERIC_TEXT.test(value)) {
         const numeric = Number(value);
         if (numeric >= Number.MIN_SAFE_INTEGER && numeric <= Number.MAX_SAFE_INTEGER) {
           row[key] = numeric;
@@ -214,6 +216,13 @@ function normalizeParquetRows(rows) {
     }
   }
   return rows;
+}
+
+function isTextField(key) {
+  const normalized = key.trim().toLowerCase().replace(/[\s-]+/g, '_');
+  return TEXT_FIELD_NAMES.has(normalized)
+    || TEXT_FIELD_SUFFIX.test(normalized)
+    || /(?:id|code|number)$/.test(normalized);
 }
 
 function joinPath(folder, name) {
