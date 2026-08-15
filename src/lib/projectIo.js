@@ -36,6 +36,7 @@ export const REQUIRED_FILES = ['collars'];
 const EXTENSIONS_BY_PRIORITY = ['parquet', 'csv'];
 const MAX_SAFE_BIGINT = BigInt(Number.MAX_SAFE_INTEGER);
 const MIN_SAFE_BIGINT = BigInt(Number.MIN_SAFE_INTEGER);
+const NUMERIC_TEXT = /^\s*-?(\d+\.?|\.\d+|\d+\.\d+)([eE][-+]?\d+)?\s*$/;
 
 export function isTauri() {
   return typeof window !== 'undefined' && (
@@ -195,6 +196,7 @@ async function parquetBytesToRows(bytes) {
 }
 
 function normalizeParquetRows(rows) {
+  // Rows are decoder-owned, so normalize in place without another full copy.
   for (const row of rows) {
     for (const [key, value] of Object.entries(row)) {
       if (typeof value === 'bigint') {
@@ -203,6 +205,11 @@ function normalizeParquetRows(rows) {
           : value.toString();
       } else if (value instanceof Date) {
         row[key] = value.toISOString();
+      } else if (typeof value === 'string' && NUMERIC_TEXT.test(value)) {
+        const numeric = Number(value);
+        if (numeric >= Number.MIN_SAFE_INTEGER && numeric <= Number.MAX_SAFE_INTEGER) {
+          row[key] = numeric;
+        }
       }
     }
   }
