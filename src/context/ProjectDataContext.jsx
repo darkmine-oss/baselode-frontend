@@ -140,13 +140,16 @@ export function useProjectData() {
 async function parseProject(read) {
   const { files } = read;
   const errors = {};
+  const hasSource = (source) => (
+    Array.isArray(source) ? source.length > 0 : Boolean(source)
+  );
 
   // Collars — required.
   const collars = parseCollars(files.collars);
 
   // Assays — Parquet rows bypass CSV serialization and parsing.
   let assayState = null;
-  if (files.assays) {
+  if (hasSource(files.assays)) {
     try {
       if (Array.isArray(files.assays)) {
         assayState = loadAssayFromRows(files.assays, '');
@@ -161,7 +164,7 @@ async function parseProject(read) {
 
   // Structural (parser returns a Promise).
   let structureRows = null;
-  if (files.structure) {
+  if (hasSource(files.structure)) {
     try {
       const parsed = Array.isArray(files.structure)
         ? parseStructuralFromRows(files.structure)
@@ -174,7 +177,7 @@ async function parseProject(read) {
 
   // Geology (parser returns a Promise).
   let geologyHoles = [];
-  if (files.geology) {
+  if (hasSource(files.geology)) {
     try {
       const parsed = Array.isArray(files.geology)
         ? parseGeologyFromRows(files.geology)
@@ -187,7 +190,7 @@ async function parseProject(read) {
 
   // Combined hole records (assay + structural + geology unified by hole).
   let combinedHoles = [];
-  if (files.assays || files.structure || files.geology) {
+  if ([files.assays, files.structure, files.geology].some(hasSource)) {
     try {
       const unified = await parseUnifiedDataset({
         assayCsv: Array.isArray(files.assays) ? undefined : files.assays,
@@ -206,7 +209,7 @@ async function parseProject(read) {
   // Resolve structural orientations against the hole survey: alpha/beta-only
   // structural points gain derived dip/azimuth, which is what makes the
   // tadpole and dip/azimuth chart types work for oriented-core data.
-  if (files.survey && combinedHoles.length) {
+  if (hasSource(files.survey) && combinedHoles.length) {
     try {
       const surveyRows = Array.isArray(files.survey)
         ? parseSurveyFromRows(files.survey)
@@ -222,7 +225,7 @@ async function parseProject(read) {
   // soil / outcrop) keyed by sample_id rather than hole_id.  Used by the
   // Analytics page.
   let surfaceSamples = [];
-  if (files.surface_samples) {
+  if (hasSource(files.surface_samples)) {
     try {
       const parsed = parseSurfaceSamples(files.surface_samples);
       surfaceSamples = parsed?.rows || [];

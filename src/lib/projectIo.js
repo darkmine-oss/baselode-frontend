@@ -34,6 +34,8 @@ export const PROJECT_FILE_KEYS = Object.freeze([
 export const REQUIRED_FILES = ['collars'];
 
 const EXTENSIONS_BY_PRIORITY = ['parquet', 'csv'];
+const MAX_SAFE_BIGINT = BigInt(Number.MAX_SAFE_INTEGER);
+const MIN_SAFE_BIGINT = BigInt(Number.MIN_SAFE_INTEGER);
 
 export function isTauri() {
   return typeof window !== 'undefined' && (
@@ -188,7 +190,23 @@ async function parquetBytesToRows(bytes) {
   // hyparquet wants an ArrayBuffer-like with byteLength + slice.  A plain
   // ArrayBuffer satisfies that interface.
   const arrayBuffer = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
-  return parquetReadObjects({ file: arrayBuffer, compressors });
+  const rows = await parquetReadObjects({ file: arrayBuffer, compressors });
+  return normalizeParquetRows(rows);
+}
+
+function normalizeParquetRows(rows) {
+  for (const row of rows) {
+    for (const [key, value] of Object.entries(row)) {
+      if (typeof value === 'bigint') {
+        row[key] = value >= MIN_SAFE_BIGINT && value <= MAX_SAFE_BIGINT
+          ? Number(value)
+          : value.toString();
+      } else if (value instanceof Date) {
+        row[key] = value.toISOString();
+      }
+    }
+  }
+  return rows;
 }
 
 function joinPath(folder, name) {
