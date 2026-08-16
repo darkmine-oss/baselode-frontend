@@ -6,10 +6,14 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 import Papa from 'papaparse';
 import {
   loadAssayFile,
+  loadAssayFromRows,
   parseStructuralCSV,
+  parseStructuralFromRows,
   parseSurveyCSV,
+  parseSurveyFromRows,
   parseUnifiedDataset,
   parseGeologyCsvText,
+  parseGeologyFromRows,
   standardizeColumns,
   HOLE_ID,
 } from 'baselode';
@@ -136,16 +140,23 @@ export function useProjectData() {
 async function parseProject(read) {
   const { files } = read;
   const errors = {};
+  const hasSource = (source) => (
+    Array.isArray(source) ? source.length > 0 : Boolean(source)
+  );
 
   // Collars — required.
   const collars = parseCollars(files.collars);
 
-  // Assays — load via baselode (it wants a File).
+  // Assays — Parquet rows bypass CSV serialization and parsing.
   let assayState = null;
-  if (files.assays) {
+  if (hasSource(files.assays)) {
     try {
-      const file = new File([new Blob([files.assays], { type: 'text/csv' })], 'assays.csv', { type: 'text/csv' });
-      assayState = await loadAssayFile(file, '');
+      if (Array.isArray(files.assays)) {
+        assayState = loadAssayFromRows(files.assays, '');
+      } else {
+        const file = new File([new Blob([files.assays], { type: 'text/csv' })], 'assays.csv', { type: 'text/csv' });
+        assayState = await loadAssayFile(file, '');
+      }
     } catch (e) {
       errors.assays = e?.message || String(e);
     }
@@ -153,9 +164,11 @@ async function parseProject(read) {
 
   // Structural (parser returns a Promise).
   let structureRows = null;
-  if (files.structure) {
+  if (hasSource(files.structure)) {
     try {
-      const parsed = await parseStructuralCSV(files.structure);
+      const parsed = Array.isArray(files.structure)
+        ? parseStructuralFromRows(files.structure)
+        : await parseStructuralCSV(files.structure);
       structureRows = parsed?.rows || null;
     } catch (e) {
       errors.structure = e?.message || String(e);
@@ -164,9 +177,11 @@ async function parseProject(read) {
 
   // Geology (parser returns a Promise).
   let geologyHoles = [];
-  if (files.geology) {
+  if (hasSource(files.geology)) {
     try {
-      const parsed = await parseGeologyCsvText(files.geology);
+      const parsed = Array.isArray(files.geology)
+        ? parseGeologyFromRows(files.geology)
+        : await parseGeologyCsvText(files.geology);
       geologyHoles = parsed?.holes || [];
     } catch (e) {
       errors.geology = e?.message || String(e);
@@ -175,12 +190,15 @@ async function parseProject(read) {
 
   // Combined hole records (assay + structural + geology unified by hole).
   let combinedHoles = [];
-  if (files.assays || files.structure || files.geology) {
+  if ([files.assays, files.structure, files.geology].some(hasSource)) {
     try {
       const unified = await parseUnifiedDataset({
-        assayCsv: files.assays || '',
-        structuralCsv: files.structure || '',
-        geologyCsv: files.geology || '',
+        assayCsv: Array.isArray(files.assays) ? undefined : files.assays,
+        structuralCsv: Array.isArray(files.structure) ? undefined : files.structure,
+        geologyCsv: Array.isArray(files.geology) ? undefined : files.geology,
+        assayRows: Array.isArray(files.assays) ? files.assays : undefined,
+        structuralRows: Array.isArray(files.structure) ? files.structure : undefined,
+        geologyRows: Array.isArray(files.geology) ? files.geology : undefined,
       });
       combinedHoles = unified?.holes || [];
     } catch (e) {
@@ -191,9 +209,11 @@ async function parseProject(read) {
   // Resolve structural orientations against the hole survey: alpha/beta-only
   // structural points gain derived dip/azimuth, which is what makes the
   // tadpole and dip/azimuth chart types work for oriented-core data.
-  if (files.survey && combinedHoles.length) {
+  if (hasSource(files.survey) && combinedHoles.length) {
     try {
-      const surveyRows = await parseSurveyCSV(files.survey);
+      const surveyRows = Array.isArray(files.survey)
+        ? parseSurveyFromRows(files.survey)
+        : await parseSurveyCSV(files.survey);
       const stationIndex = buildSurveyStationIndex(surveyRows || []);
       combinedHoles = resolveStructuralOrientations(combinedHoles, stationIndex);
     } catch (e) {
@@ -205,7 +225,7 @@ async function parseProject(read) {
   // soil / outcrop) keyed by sample_id rather than hole_id.  Used by the
   // Analytics page.
   let surfaceSamples = [];
-  if (files.surface_samples) {
+  if (hasSource(files.surface_samples)) {
     try {
       const parsed = parseSurfaceSamples(files.surface_samples);
       surfaceSamples = parsed?.rows || [];
@@ -254,10 +274,12 @@ function resolveStructuralOrientations(holes, stationIndex) {
   });
 }
 
-function parseCollars(csvText) {
-  if (!csvText) return [];
-  const { data } = Papa.parse(csvText, { header: true, skipEmptyLines: true });
-  return (data || []).flatMap((row) => {
+function parseCollars(source) {
+  if (!source) return [];
+  const rows = Array.isArray(source)
+    ? source
+    : Papa.parse(source, { header: true, skipEmptyLines: true }).data;
+  return (rows || []).flatMap((row) => {
     const s = standardizeColumns(row);
     const lat = parseFloat(s.latitude);
     const lng = parseFloat(s.longitude);

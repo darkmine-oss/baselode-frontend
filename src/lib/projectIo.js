@@ -3,15 +3,13 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  *
  * Project I/O: open a folder, find the canonical files (in .parquet OR .csv
- * form, parquet preferred), and return their contents as CSV text so the
- * existing baselode parsers keep working.
+ * form, parquet preferred). CSV files remain text; Parquet files are decoded
+ * once and returned as row objects for Baselode's row-based loaders.
  *
  * Runs in two environments:
  *   - Tauri desktop  → @tauri-apps/plugin-dialog + @tauri-apps/plugin-fs
  *   - Plain browser  → <input type=file webkitdirectory>  (dev fallback)
  */
-
-import Papa from 'papaparse';
 
 /**
  * Canonical project files. Each is looked up as `<key>.parquet` first, then
@@ -36,6 +34,11 @@ export const PROJECT_FILE_KEYS = Object.freeze([
 export const REQUIRED_FILES = ['collars'];
 
 const EXTENSIONS_BY_PRIORITY = ['parquet', 'csv'];
+const MAX_SAFE_BIGINT = BigInt(Number.MAX_SAFE_INTEGER);
+const MIN_SAFE_BIGINT = BigInt(Number.MIN_SAFE_INTEGER);
+const NUMERIC_TEXT = /^\s*-?(\d+\.?|\.\d+|\d+\.\d+)([eE][-+]?\d+)?\s*$/;
+const TEXT_FIELD_SUFFIX = /(^|_)(id|code|number|no)$/;
+const TEXT_FIELD_NAMES = new Set(['dataset', 'hole', 'project']);
 
 export function isTauri() {
   return typeof window !== 'undefined' && (
@@ -59,7 +62,8 @@ export async function pickProjectFolder() {
 /**
  * Read each canonical file from a Tauri-picked folder. Missing files
  * resolve to null. Returns `{ folderPath, files: { collars, ... }, formats }`
- * where each file value is CSV text and each format value is 'parquet'|'csv'|null.
+ * where each file value is CSV text or Parquet rows and each format value is
+ * 'parquet'|'csv'|null.
  */
 export async function readProjectFolder(folderPath) {
   if (!isTauri()) {
@@ -90,7 +94,7 @@ export async function readProjectFolder(folderPath) {
       try {
         if (ext === 'parquet') {
           const bytes = await fs.readFile(fullPath);
-          out.files[key] = await parquetBytesToCsvText(bytes);
+          out.files[key] = await parquetBytesToRows(bytes);
         } else {
           out.files[key] = await fs.readTextFile(fullPath);
         }
@@ -158,7 +162,7 @@ export async function readProjectFromFileList(fileList) {
       try {
         if (ext === 'parquet') {
           const ab = await file.arrayBuffer();
-          out.files[key] = await parquetBytesToCsvText(new Uint8Array(ab));
+          out.files[key] = await parquetBytesToRows(new Uint8Array(ab));
         } else {
           out.files[key] = await file.text();
         }
@@ -178,7 +182,7 @@ export async function readProjectFromFileList(fileList) {
   return out;
 }
 
-async function parquetBytesToCsvText(bytes) {
+async function parquetBytesToRows(bytes) {
   const { parquetReadObjects } = await import('hyparquet');
   // hyparquet only ships SNAPPY + GZIP decompressors out of the box;
   // pyarrow/duckdb-written files routinely use ZSTD / BROTLI / LZ4.
@@ -190,21 +194,35 @@ async function parquetBytesToCsvText(bytes) {
   // ArrayBuffer satisfies that interface.
   const arrayBuffer = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
   const rows = await parquetReadObjects({ file: arrayBuffer, compressors });
-  if (!rows.length) return '';
-  return Papa.unparse(rows.map(coerceRowValues));
+  return normalizeParquetRows(rows);
 }
 
-function coerceRowValues(row) {
-  // hyparquet returns numbers/strings/booleans/BigInt/null. CSV can't carry
-  // BigInt or typed dates verbatim — turn them into plain values.
-  const out = {};
-  for (const [k, v] of Object.entries(row)) {
-    if (v === null || v === undefined) out[k] = '';
-    else if (typeof v === 'bigint') out[k] = v.toString();
-    else if (v instanceof Date) out[k] = v.toISOString();
-    else out[k] = v;
+function normalizeParquetRows(rows) {
+  // Rows are decoder-owned, so normalize in place without another full copy.
+  for (const row of rows) {
+    for (const [key, value] of Object.entries(row)) {
+      if (typeof value === 'bigint') {
+        row[key] = !isTextField(key) && value >= MIN_SAFE_BIGINT && value <= MAX_SAFE_BIGINT
+          ? Number(value)
+          : value.toString();
+      } else if (value instanceof Date) {
+        row[key] = value.toISOString();
+      } else if (!isTextField(key) && typeof value === 'string' && NUMERIC_TEXT.test(value)) {
+        const numeric = Number(value);
+        if (numeric >= Number.MIN_SAFE_INTEGER && numeric <= Number.MAX_SAFE_INTEGER) {
+          row[key] = numeric;
+        }
+      }
+    }
   }
-  return out;
+  return rows;
+}
+
+function isTextField(key) {
+  const normalized = key.trim().toLowerCase().replace(/[\s-]+/g, '_');
+  return TEXT_FIELD_NAMES.has(normalized)
+    || TEXT_FIELD_SUFFIX.test(normalized)
+    || /(?:id|code|number)$/.test(normalized);
 }
 
 function joinPath(folder, name) {

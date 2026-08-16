@@ -10,7 +10,9 @@ import {
   Baselode3DScene,
   Baselode3DControls,
   parseDrillholesCSV,
+  parseDrillholesFromRows,
   parseSurveyCSV,
+  parseSurveyFromRows,
   desurveyTraces,
   classifyColumns,
   getCategoryHexColor,
@@ -162,12 +164,15 @@ function Drillhole() {
   // parseSurveyCSV is async, so we land it in state via useEffect.
   const [surveyRows, setSurveyRows] = useState(null);
   useEffect(() => {
-    if (!rawCsv?.survey) {
+    if (!rawCsv?.survey?.length) {
       setSurveyRows(null);
       return undefined;
     }
     let cancelled = false;
-    parseSurveyCSV(rawCsv.survey)
+    Promise.resolve()
+      .then(() => (Array.isArray(rawCsv.survey)
+        ? parseSurveyFromRows(rawCsv.survey)
+        : parseSurveyCSV(rawCsv.survey)))
       .then((rows) => { if (!cancelled) setSurveyRows(rows?.length ? rows : null); })
       .catch((e) => {
         console.warn('Survey parse failed:', e);
@@ -181,12 +186,15 @@ function Drillhole() {
   // desurvey when an entry exists. parseDrillholesCSV is also async.
   const [precomputedByHole, setPrecomputedByHole] = useState({});
   useEffect(() => {
-    if (!rawCsv?.precomputed) {
+    if (!rawCsv?.precomputed?.length) {
       setPrecomputedByHole({});
       return undefined;
     }
     let cancelled = false;
-    parseDrillholesCSV(rawCsv.precomputed)
+    Promise.resolve()
+      .then(() => (Array.isArray(rawCsv.precomputed)
+        ? parseDrillholesFromRows(rawCsv.precomputed)
+        : parseDrillholesCSV(rawCsv.precomputed)))
       .then((parsed) => {
         if (cancelled) return;
         const out = {};

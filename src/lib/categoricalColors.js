@@ -5,12 +5,15 @@ const RESERVED_COLUMNS = new Set(['hole_id', 'from', 'to', 'mid', '_source']);
 const key = (value) => String(value ?? '').trim().toLowerCase();
 const isCategory = (value) => typeof value === 'string' && value.trim() !== '' && !Number.isFinite(Number(value));
 
-function readColorRules(csvText) {
+function readColorRules(source) {
   const global = new Map();
   const byColumn = new Map();
-  if (!csvText) return { global, byColumn };
+  if (!source) return { global, byColumn };
+  const rows = Array.isArray(source)
+    ? source
+    : Papa.parse(source, { header: true, skipEmptyLines: true }).data;
 
-  for (const row of Papa.parse(csvText, { header: true, skipEmptyLines: true }).data || []) {
+  for (const row of rows || []) {
     const value = String(row.value || '').trim();
     const color = String(row.color || '').trim();
     const column = String(row.column || '').trim();
@@ -31,7 +34,7 @@ function readColorRules(csvText) {
  * Produces a stable, project-wide categorical map. Column-specific rows in
  * colors.csv override matching global rows for the selected property.
  */
-export function buildCategoricalColorMap(holes, csvText, column = '') {
+export function buildCategoricalColorMap(holes, source, column = '') {
   const values = new Set();
   for (const hole of holes || []) for (const point of hole?.points || []) {
     for (const [name, value] of Object.entries(point || {})) {
@@ -39,7 +42,7 @@ export function buildCategoricalColorMap(holes, csvText, column = '') {
     }
   }
 
-  const { global, byColumn } = readColorRules(csvText);
+  const { global, byColumn } = readColorRules(source);
   const overrides = byColumn.get(column) || new Map();
   const out = {};
   let paletteIndex = 0;
