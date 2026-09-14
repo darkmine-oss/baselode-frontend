@@ -13,7 +13,7 @@ import {
   parseDrillholesFromRows,
   parseSurveyCSV,
   parseSurveyFromRows,
-  desurveyTraces,
+  minimumCurvatureDesurvey,
   classifyColumns,
   getCategoryHexColor,
   COMMODITY_COLOURS,
@@ -233,6 +233,14 @@ function Drillhole() {
   // metadata or proj dependency needed. Null until enough control points exist.
   const utmToLocal = useMemo(() => fitUtmToLocalTransform(collars, project), [collars, project]);
 
+  // Single lat/lng -> scene-metres entry point. The fitted UTM transform is
+  // preferred when the collars supply enough control points (it is the same
+  // mapping precomputed traces and OBJ meshes go through, so everything lands
+  // in one frame); the tangent-plane projector is the fallback.
+  const projectLatLngToScene = useCallback((lat, lng) => (
+    utmToLocal?.projectLatLng(lat, lng) || project?.(lat, lng) || null
+  ), [utmToLocal, project]);
+
   // Classify every collar by the 3D geometry it can actually produce, so the
   // picker separates holes that render a real drill string from those that
   // don't. Merely appearing in the survey rows isn't enough — a hole with a
@@ -247,7 +255,7 @@ function Drillhole() {
     const desurveyCount = new Map();
     if (surveyRows?.length && collars.length) {
       let traces = [];
-      try { traces = desurveyTraces(collars, surveyRows) || []; } catch (e) { traces = []; }
+      try { traces = desurveyHolesInSceneFrame(collars, surveyRows, projectLatLngToScene) || []; } catch (e) { traces = []; }
       for (const t of traces) {
         if (!t?.id) continue;
         const n = (t.points || []).filter((p) => Number.isFinite(p.z)).length;
@@ -270,7 +278,7 @@ function Drillhole() {
     }
     full.sort(); collar.sort(); noSurvey.sort();
     return { full, collar, noSurvey };
-  }, [collars, surveyRows, precomputedByHole]);
+  }, [collars, surveyRows, precomputedByHole, projectLatLngToScene]);
 
   // Reset scene-holes whenever the project changes underneath us. Without
   // this, leftover holes from a previous project would refuse to clear.
@@ -336,7 +344,9 @@ function Drillhole() {
     }
     let desurveyed;
     try {
-      desurveyed = desurveyTraces([collar], surveyRows);
+      // The canonical desurvey already emits scene-frame x/y and RL Z, so the
+      // trace needs no reprojection or collar-elevation lift here.
+      desurveyed = desurveyHolesInSceneFrame([collar], surveyRows, projectLatLngToScene);
     } catch (e) {
       setAddError(e?.message || `Desurvey failed for ${holeId}.`);
       return;
@@ -346,31 +356,19 @@ function Drillhole() {
       return;
     }
     const h = desurveyed[0];
-    // baselode emits survey-trace Z relative to the collar (z=0 at the
-    // collar). Lift it to the collar RL when known so survey-derived traces
-    // share the same absolute vertical datum as collar-only holes.
-    const collarElevation = Number(collar.elevation);
-    const zOffset = Number.isFinite(collarElevation) ? collarElevation : 0;
-    const pts = (h.points || [])
-      .map((p) => {
-        const xy = utmToLocal?.projectLatLng(p.lat ?? 0, p.lng ?? 0) || project(p.lat ?? 0, p.lng ?? 0);
-        if (!Number.isFinite(xy.x) || !Number.isFinite(xy.y) || !Number.isFinite(p.z)) return null;
-        return { x: xy.x, y: xy.y, z: zOffset + p.z, md: p.md };
-      })
-      .filter(Boolean);
-    if (!pts.length) {
+    if (!h.points?.length) {
       setAddError(`No projectable points for ${holeId}.`);
       return;
     }
-    appendIfNew({ id: h.id, project: h.project, points: pts });
-  }, [collars, surveyRows, precomputedByHole, project, utmToLocal]);
+    appendIfNew({ id: h.id, project: h.project, points: h.points });
+  }, [collars, surveyRows, precomputedByHole, project, utmToLocal, projectLatLngToScene]);
 
   // Add a collar-only hole: no desurveyed string, but the collar carries an
   // elevation, so we can place a single accurate point at (collar x/y, RL).
   // The scene renders a lone point as a collar circle. Kept separate from
-  // addHoleToScene because there is no trace to desurvey — the collar RL is
-  // the only Z we have (baselode's desurvey starts traces at z=0 and ignores
-  // collar elevation, so a real RL never reaches the string path).
+  // addHoleToScene because there is no trace to desurvey — without survey
+  // stations the desurvey has nothing to integrate, so the collar RL is the
+  // only Z we have.
   const addCollarPointToScene = useCallback((holeId) => {
     if (!holeId) return;
     setAddError('');
@@ -945,6 +943,58 @@ function buildEqualRangeColorScale(values = [], colors = ASSAY_COLOR_PALETTE_10)
 
 function normalizeHoleKey(value) {
   return `${value ?? ''}`.trim().toLowerCase();
+}
+
+// Desurvey collars into the scene's local-metres frame.
+//
+// baselode's canonical desurvey takes collars in a projected frame
+// (`easting` / `northing` / `elevation`, +Z up) and returns a flat array of
+// station points in that same frame, so we seed it with the local frame the
+// scene already draws in and the traces come back ready to render. Seeding
+// the collar with its real RL puts survey-derived strings on the same
+// vertical datum as collar-only holes; an unknown RL falls back to a 0 m
+// datum, which is what the collar-relative traces used to give us.
+//
+// `step: null` keeps one vertex per survey station rather than resampling
+// the trace every metre. The flat rows are regrouped per hole because that
+// is the shape the scene (and the hole classification below) consumes.
+function desurveyHolesInSceneFrame(collars, surveyRows, projectLatLng) {
+  if (!surveyRows?.length || !projectLatLng) return [];
+  const collarByKey = new Map();
+  const canonicalCollars = [];
+  for (const collar of collars || []) {
+    const holeId = collar?.holeId;
+    if (!holeId) continue;
+    const key = normalizeHoleKey(holeId);
+    if (collarByKey.has(key)) continue;
+    const xy = projectLatLng(collar.lat, collar.lng);
+    if (!Number.isFinite(xy?.x) || !Number.isFinite(xy?.y)) continue;
+    const elevation = Number(collar.elevation);
+    collarByKey.set(key, collar);
+    canonicalCollars.push({
+      hole_id: holeId,
+      easting: xy.x,
+      northing: xy.y,
+      elevation: Number.isFinite(elevation) ? elevation : 0,
+    });
+  }
+  if (!canonicalCollars.length) return [];
+
+  const points = minimumCurvatureDesurvey(canonicalCollars, surveyRows, { step: null }) || [];
+  const byKey = new Map();
+  for (const point of points) {
+    const key = normalizeHoleKey(point?.hole_id);
+    const collar = collarByKey.get(key);
+    if (!collar) continue;
+    if (!Number.isFinite(point.x) || !Number.isFinite(point.y) || !Number.isFinite(point.z)) continue;
+    let hole = byKey.get(key);
+    if (!hole) {
+      hole = { id: collar.holeId, project: collar.project || '', points: [] };
+      byKey.set(key, hole);
+    }
+    hole.points.push({ x: point.x, y: point.y, z: point.z, md: point.md });
+  }
+  return [...byKey.values()];
 }
 
 function finiteValueRange(values) {
