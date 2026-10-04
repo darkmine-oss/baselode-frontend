@@ -12,11 +12,11 @@
     "tauri:dev": "tauri dev",
     "tauri:build": "tauri build"
   },
-  "//dependencies": "Intentionally unpinned (\"*\") with no committed lockfile — every install/build resolves the latest published version of each package. Staleness is treated as a bigger risk than an occasional upstream break; see .gitignore (package-lock.json) and .github/workflows/release.yml (npm install, no cache).",
+  "//dependencies": "Tauri JS packages stay on the minor versions paired with the Rust crates in src-tauri/Cargo.lock; other dependencies intentionally float. package-lock.json is ignored, so npm install resolves current patch releases within those Tauri minor lines.",
   "dependencies": {
-    "@tauri-apps/api": "*",
-    "@tauri-apps/plugin-dialog": "*",
-    "@tauri-apps/plugin-fs": "*",
+    "@tauri-apps/api": "~2.11.1",
+    "@tauri-apps/plugin-dialog": "~2.7.1",
+    "@tauri-apps/plugin-fs": "~2.5.1",
     "baselode": "^0.1.46",
     "hyparquet": "*",
     "hyparquet-compressors": "*",
