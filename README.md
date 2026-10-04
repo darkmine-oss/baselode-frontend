@@ -11,6 +11,13 @@ folder of csv or parquet files, and explore the holes on a map, in 3D, and as st
 > Only continue if you downloaded the app from an official Darkmine
 > [GitHub release](https://github.com/darkmine-oss/baselode-frontend/releases).
 
+After the maintainer setup below is complete, new releases will be signed with
+Darkmine's Developer ID certificate and notarized by Apple. macOS should open
+those downloads normally. Older releases may still show a security warning;
+use the steps below for those versions.
+
+For older unsigned releases:
+
 1. Download the app and drag it into the **Applications** folder.
 2. Try to open it normally. macOS will display a security warning.
 3. Click **Done** or **Cancel**.
@@ -24,6 +31,37 @@ The Mac should remember this decision, so the app can be opened normally
 afterward. The **Open Anyway** option is available for approximately one hour
 after the blocked launch attempt. These are Apple's current official
 instructions.
+
+### Maintainer setup for macOS releases
+
+The GitHub Actions release workflow reads signing and notarization credentials
+from repository Actions secrets. Export the **Developer ID Application**
+certificate and its private key from Keychain Access as a password-protected
+`.p12` file, then create its base64 value with:
+
+```sh
+openssl base64 -A -in certificate.p12 -out certificate-base64.txt
+```
+
+Add these repository secrets under **Settings → Secrets and variables →
+Actions**:
+
+- `APPLE_CERTIFICATE`: contents of `certificate-base64.txt`
+- `APPLE_CERTIFICATE_PASSWORD`: password used to export the `.p12`
+
+For notarization, configure either Apple ID credentials or an App Store Connect
+API key. With an Apple ID, add `APPLE_ID`, `APPLE_PASSWORD` (an app-specific
+password), and `APPLE_TEAM_ID`. With an API key, add `APPLE_API_KEY` (Key ID),
+`APPLE_API_ISSUER` (Issuer ID), and `APPLE_API_KEY_BASE64` (the base64 encoded
+`.p8` private key). Create its base64 value with:
+
+```sh
+openssl base64 -A -in AuthKey_<KEY_ID>.p8 -out api-key-base64.txt
+```
+
+The workflow decodes the private key into the temporary GitHub runner
+directory. Never commit the certificate, private key, or their passwords to
+the repository.
 
 ## Opening the app on Windows
 
