@@ -11,57 +11,8 @@ folder of csv or parquet files, and explore the holes on a map, in 3D, and as st
 > Only continue if you downloaded the app from an official Darkmine
 > [GitHub release](https://github.com/darkmine-oss/baselode-frontend/releases).
 
-After the maintainer setup below is complete, new releases will be signed with
-Darkmine's Developer ID certificate and notarized by Apple. macOS should open
-those downloads normally. Older releases may still show a security warning;
-use the steps below for those versions.
-
-For older unsigned releases:
-
-1. Download the app and drag it into the **Applications** folder.
-2. Try to open it normally. macOS will display a security warning.
-3. Click **Done** or **Cancel**.
-4. Open **Apple menu → System Settings → Privacy & Security**.
-5. Scroll down to the **Security** section.
-6. Find the message saying the app was blocked and click **Open Anyway**.
-7. Enter your Mac password if requested.
-8. Confirm by clicking **Open**.
-
-The Mac should remember this decision, so the app can be opened normally
-afterward. The **Open Anyway** option is available for approximately one hour
-after the blocked launch attempt. These are Apple's current official
-instructions.
-
-### Maintainer setup for macOS releases
-
-The GitHub Actions release workflow reads signing and notarization credentials
-from repository Actions secrets. Export the **Developer ID Application**
-certificate and its private key from Keychain Access as a password-protected
-`.p12` file, then create its base64 value with:
-
-```sh
-openssl base64 -A -in certificate.p12 -out certificate-base64.txt
-```
-
-Add these repository secrets under **Settings → Secrets and variables →
-Actions**:
-
-- `APPLE_CERTIFICATE`: contents of `certificate-base64.txt`
-- `APPLE_CERTIFICATE_PASSWORD`: password used to export the `.p12`
-
-For notarization, configure either Apple ID credentials or an App Store Connect
-API key. With an Apple ID, add `APPLE_ID`, `APPLE_PASSWORD` (an app-specific
-password), and `APPLE_TEAM_ID`. With an API key, add `APPLE_API_KEY` (Key ID),
-`APPLE_API_ISSUER` (Issuer ID), and `APPLE_API_KEY_BASE64` (the base64 encoded
-`.p8` private key). Create its base64 value with:
-
-```sh
-openssl base64 -A -in AuthKey_<KEY_ID>.p8 -out api-key-base64.txt
-```
-
-The workflow decodes the private key into the temporary GitHub runner
-directory. Never commit the certificate, private key, or their passwords to
-the repository.
+Download the latest signed and notarized macOS release and open it normally.
+Gatekeeper should allow it to launch without any security override.
 
 ## Opening the app on Windows
 
@@ -230,40 +181,10 @@ Outputs `.msi` and `.exe` (NSIS) installers under
 `src-tauri/target/release/bundle/`. Cross-building Windows artefacts from
 macOS/Linux requires `cargo-xwin` and the Windows SDK; see the Tauri docs.
 
+
 ## Releasing
 
 Releases are tag-driven via `.github/workflows/release.yml`.
-
-**Cut a new version** — either of these works:
-
-```sh
-# (a) From your machine, push a SemVer tag:
-git tag v0.1.5
-git push origin v0.1.5
-
-# (b) From the GitHub UI, run the "release" workflow with a version input
-# (e.g. 0.1.5) — the workflow tags the repo for you.
-```
-
-On either trigger the workflow:
-
-1. Resolves the version, strips the leading `v`, and writes it into
-   `package.json`, `src-tauri/tauri.conf.json`, and `src-tauri/Cargo.toml`
-   so all three stay in lock-step (Vite reads the JS version into
-   `__APP_VERSION__`; Tauri reads the JSON version for the bundle).
-2. Builds the matrix:
-   - **macOS** — universal `.app` (aarch64 + x86_64)
-   - **Windows** — `.msi` and NSIS `.exe`
-   - **Linux** — `.deb` and `.AppImage`
-3. Attaches every bundle to a **draft** GitHub Release named after the tag.
-   Review the assets in the Releases UI and click **Publish** when ready.
-
-Versioning convention: `vMAJOR.MINOR.PATCH`, starting at `v0.1.0`. The
-workflow rejects non-SemVer strings.
-
-For local one-off builds the version remains whatever's in `package.json` /
-`tauri.conf.json` / `Cargo.toml` on disk — the workflow only edits them
-in-runner, never commits the change back to the repo.
 
 ## License
 

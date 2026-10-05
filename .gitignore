@@ -3,6 +3,7 @@ dist
 dist-ssr
 *.local
 .vite
+.env
 
 # No committed lockfile — dependencies intentionally float to latest on every
 # install/build (see package.json). Committing a lock would re-pin them.
