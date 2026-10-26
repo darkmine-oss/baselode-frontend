@@ -10,7 +10,8 @@
     "preview": "vite preview",
     "tauri": "tauri",
     "tauri:dev": "tauri dev",
-    "tauri:build": "tauri build"
+    "tauri:build": "tauri build",
+    "test": "node --test tests/*.test.js"
   },
   "//dependencies": "Tauri JS packages stay on the minor versions paired with the Rust crates in src-tauri/Cargo.lock; other dependencies intentionally float. package-lock.json is ignored, so npm install resolves current patch releases within those Tauri minor lines.",
   "dependencies": {
@@ -19,7 +20,7 @@
     "@tauri-apps/plugin-fs": "~2.5.1",
     "baselode": "^0.1.56",
     "hyparquet": "*",
-    "hyparquet-compressors": "*",
+    "hyparquet-compressors": "1.1.1",
     "maplibre-gl": "*",
     "papaparse": "*",
     "plotly.js-dist-min": "*",
@@ -28,7 +29,8 @@
     "react-dom": "*",
     "react-router": "*",
     "three": "*",
-    "three-viewport-gizmo": "*"
+    "three-viewport-gizmo": "*",
+    "fzstd": "^0.1.1"
   },
   "devDependencies": {
     "@tauri-apps/cli": "*",

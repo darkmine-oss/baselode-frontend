@@ -21,6 +21,7 @@ import {
 import 'baselode/style.css';
 import './Drillhole.css';
 import { useProjectData } from '../context/ProjectDataContext.jsx';
+import { isLocalGridProject, localCollarXY } from '../lib/projectCoordinates.js';
 import { makeLocalProjector } from '../lib/localProjection.js';
 import { buildCategoricalColorMap, colorForCategory } from '../lib/categoricalColors.js';
 
@@ -67,6 +68,8 @@ function Drillhole() {
   const zoomSliderPrevRef = useRef(50);
 
   const { collars, assayState, structureRows, geologyHoles, rawCsv, status } = useProjectData();
+
+  const localGrid = useMemo(() => isLocalGridProject(collars), [collars]);
 
   // Scene contains only holes the user has explicitly added via the sidebar.
   const [holes, setHoles] = useState([]);
@@ -221,25 +224,26 @@ function Drillhole() {
   // the camera.
   const project = useMemo(() => {
     if (!collars.length) return null;
+    if (localGrid) return () => null;
     const refLat = collars.reduce((s, c) => s + c.lat, 0) / collars.length;
     const refLng = collars.reduce((s, c) => s + c.lng, 0) / collars.length;
     return makeLocalProjector(refLat, refLng);
-  }, [collars]);
+  }, [collars, localGrid]);
 
   // Transform that georeferences loaded OBJ meshes (which are exported in the
   // project's projected CRS, e.g. UTM/MGA easting-northing) into the scene's
   // local-meters frame so they overlay the drillholes. Fitted directly from
   // the collars, which carry both lat/lng and easting/northing — no CRS/zone
   // metadata or proj dependency needed. Null until enough control points exist.
-  const utmToLocal = useMemo(() => fitUtmToLocalTransform(collars, project), [collars, project]);
+  const utmToLocal = useMemo(() => localGrid ? null : fitUtmToLocalTransform(collars, project), [collars, project, localGrid]);
 
   // Single lat/lng -> scene-metres entry point. The fitted UTM transform is
   // preferred when the collars supply enough control points (it is the same
   // mapping precomputed traces and OBJ meshes go through, so everything lands
   // in one frame); the tangent-plane projector is the fallback.
-  const projectLatLngToScene = useCallback((lat, lng) => (
-    utmToLocal?.projectLatLng(lat, lng) || project?.(lat, lng) || null
-  ), [utmToLocal, project]);
+  const projectLatLngToScene = useCallback((lat, lng, collar) => (
+    localGrid ? localCollarXY(collar) : (utmToLocal?.projectLatLng(lat, lng) || project?.(lat, lng) || null)
+  ), [utmToLocal, project, localGrid]);
 
   // Classify every collar by the 3D geometry it can actually produce, so the
   // picker separates holes that render a real drill string from those that
@@ -386,14 +390,14 @@ function Drillhole() {
       setAddError(`No collar elevation for ${holeId}.`);
       return;
     }
-    const xy = utmToLocal?.projectLatLng(collar.lat, collar.lng) || project(collar.lat, collar.lng);
+    const xy = localGrid ? localCollarXY(collar) : (utmToLocal?.projectLatLng(collar.lat, collar.lng) || project(collar.lat, collar.lng));
     if (!Number.isFinite(xy?.x) || !Number.isFinite(xy?.y)) {
       setAddError(`Could not project collar for ${holeId}.`);
       return;
     }
     const entry = { id: holeId, project: collar.project, points: [{ x: xy.x, y: xy.y, z, md: 0 }] };
     setHoles((prev) => (prev.some((h) => h.id === entry.id) ? prev : [...prev, entry]));
-  }, [collars, project, utmToLocal]);
+  }, [collars, project, utmToLocal, localGrid]);
 
   const removeHoleFromScene = useCallback((holeId) => {
     setHoles((prev) => prev.filter((h) => h.id !== holeId));
@@ -967,7 +971,7 @@ function desurveyHolesInSceneFrame(collars, surveyRows, projectLatLng) {
     if (!holeId) continue;
     const key = normalizeHoleKey(holeId);
     if (collarByKey.has(key)) continue;
-    const xy = projectLatLng(collar.lat, collar.lng);
+    const xy = projectLatLng(collar.lat, collar.lng, collar);
     if (!Number.isFinite(xy?.x) || !Number.isFinite(xy?.y)) continue;
     const elevation = Number(collar.elevation);
     collarByKey.set(key, collar);

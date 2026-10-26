@@ -71,7 +71,8 @@ export async function readProjectFolder(folderPath) {
   }
   const fs = await import('@tauri-apps/plugin-fs');
 
-  const out = { folderPath, files: {}, formats: {} };
+  const out = { folderPath, files: {}, formats: {}, errors: {} };
+  const failures = {};
   let scopeRejected = false;
 
   for (const key of PROJECT_FILE_KEYS) {
@@ -102,13 +103,17 @@ export async function readProjectFolder(folderPath) {
         break;
       } catch (e) {
         if (isScopeError(e)) scopeRejected = true;
-        console.warn(`Failed to read ${key}.${ext}:`, e);
+        (failures[key] ||= []).push(`${key}.${ext}: ${e?.message || e}`);
       }
     }
   }
 
+  for (const [key, messages] of Object.entries(failures)) {
+    if (out.files[key] == null) out.errors[key] = messages.join('; ');
+  }
   for (const required of REQUIRED_FILES) {
     if (out.files[required] == null) {
+      if (out.errors[required]) throw new Error(`Could not load ${required}: ${out.errors[required]}`);
       if (scopeRejected) {
         throw new Error(
           `That folder is outside the locations this app is allowed to read. ` +
@@ -132,7 +137,8 @@ function isScopeError(err) {
  * are present for the same canonical name.
  */
 export async function readProjectFromFileList(fileList) {
-  const out = { folderPath: '', files: {}, formats: {} };
+  const out = { folderPath: '', files: {}, formats: {}, errors: {} };
+  const failures = {};
   for (const key of PROJECT_FILE_KEYS) {
     out.files[key] = null;
     out.formats[key] = null;
@@ -141,6 +147,8 @@ export async function readProjectFromFileList(fileList) {
   // Bucket files by canonical key + extension so we can prefer parquet.
   const buckets = new Map(); // key -> { parquet?: File, csv?: File }
   for (const file of fileList) {
+    // Read only the selected folder, never silently combine child projects.
+    if (file.webkitRelativePath && file.webkitRelativePath.split('/').length !== 2) continue;
     const base = file.name.toLowerCase();
     const dot = base.lastIndexOf('.');
     if (dot < 0) continue;
@@ -149,6 +157,7 @@ export async function readProjectFromFileList(fileList) {
     if (!PROJECT_FILE_KEYS.includes(stem)) continue;
     if (!EXTENSIONS_BY_PRIORITY.includes(ext)) continue;
     if (!buckets.has(stem)) buckets.set(stem, {});
+    if (buckets.get(stem)[ext]) throw new Error(`Duplicate project file: ${stem}.${ext}`);
     buckets.get(stem)[ext] = file;
     if (!out.folderPath && file.webkitRelativePath) {
       out.folderPath = file.webkitRelativePath.split('/')[0];
@@ -169,13 +178,17 @@ export async function readProjectFromFileList(fileList) {
         out.formats[key] = ext;
         break;
       } catch (e) {
-        console.warn(`Failed to read ${key}.${ext}:`, e);
+        (failures[key] ||= []).push(`${key}.${ext}: ${e?.message || e}`);
       }
     }
   }
 
+  for (const [key, messages] of Object.entries(failures)) {
+    if (out.files[key] == null) out.errors[key] = messages.join('; ');
+  }
   for (const required of REQUIRED_FILES) {
     if (out.files[required] == null) {
+      if (out.errors[required]) throw new Error(`Could not load ${required}: ${out.errors[required]}`);
       throw new Error(`Missing required file "${required}.csv" or "${required}.parquet".`);
     }
   }
@@ -186,10 +199,9 @@ async function parquetBytesToRows(bytes) {
   const { parquetReadObjects } = await import('hyparquet');
   // hyparquet only ships SNAPPY + GZIP decompressors out of the box;
   // pyarrow/duckdb-written files routinely use ZSTD / BROTLI / LZ4.
-  // `hyparquet-compressors` plugs the full set in via the `compressors`
-  // option — without it those files silently fail to read and the
-  // loader falls back to the (typically smaller) CSV next to them.
-  const { compressors } = await import('hyparquet-compressors');
+  // JavaScript codecs keep compressed files compatible with the desktop
+  // Content Security Policy, which prohibits WebAssembly compilation.
+  const { compressors } = await import('./parquetCompressors.js');
   // hyparquet wants an ArrayBuffer-like with byteLength + slice.  A plain
   // ArrayBuffer satisfies that interface.
   const arrayBuffer = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
