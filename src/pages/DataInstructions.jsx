@@ -49,7 +49,7 @@ function DataInstructions() {
           <tbody>
             <tr>
               <td><code>collars</code></td>
-              <td><code>hole_id</code>, <code>latitude</code>, <code>longitude</code></td>
+              <td><code>hole_id</code> and either <code>latitude</code>/<code>longitude</code> or <code>easting</code>/<code>northing</code></td>
               <td><code>elevation</code>, <code>datasource_hole_id</code>, <code>project_id</code>, <code>hole_type</code>, <code>max_depth</code></td>
             </tr>
             <tr>
@@ -96,7 +96,15 @@ function DataInstructions() {
           annotations. Adding a geology attribute does not require a frontend update.
         </p>
 
-        <h2>Projection</h2>
+        <h2>Local coordinates</h2>
+        <p>
+          Local-grid projects preserve easting, northing and elevation in metres.
+          Supply traces and OBJ meshes in that same coordinate frame. No geographic
+          location or CRS is assigned. The landing page uses a local plan view.
+          Keep all canonical files directly within the selected folder.
+        </p>
+
+        <h2>Geographic projection</h2>
         <p>
           Collar latitude/longitude are projected to a <strong>local tangent plane</strong>
           centred on the collar centroid (metres east/north). For projects spanning under ~100 km
