@@ -29,3 +29,6 @@ pnpm-debug.log*
 # Local agent workspace and locally-converted data dumps
 .claude/
 test-data/gswa-*/
+
+# Local shared-library checkout used for branch testing
+.baselode-local.json

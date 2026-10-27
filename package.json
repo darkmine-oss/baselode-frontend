@@ -6,6 +6,8 @@
   "description": "Baselode Viewer — desktop drilling-data viewer by Darkmine, powered by the baselode library.",
   "scripts": {
     "dev": "vite",
+    "dev:local": "node scripts/local-baselode.mjs",
+    "baselode:local": "node scripts/local-baselode.mjs --prepare-only",
     "build": "vite build",
     "preview": "vite preview",
     "tauri": "tauri",

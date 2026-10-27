@@ -162,6 +162,19 @@ Opens at <http://127.0.0.1:1420>. The folder picker falls back to a
 `<input webkitdirectory>` element, so you can still test the data-load flow
 without the desktop binary.
 
+### Test a local Baselode branch
+
+Use the package directory in the desired Baselode checkout:
+
+```sh
+npm run baselode:local -- ../baselode-3d-controls/javascript/packages/baselode
+npm run dev
+```
+
+The first command builds Baselode, installs a local link without changing the published dependency range, and records the path in ignored `.baselode-local.json`. `npm run dev:local` rebuilds and relinks that recorded checkout before starting Vite. The dev server does not open a browser. Stop it before running the desktop development command on the same port.
+
+See [3D scene controls](.features/3d-scene-controls.md) for the branch test checklist and proposed additions.
+
 ### Desktop development
 
 ```sh

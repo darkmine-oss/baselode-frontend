@@ -22,6 +22,7 @@ import 'baselode/style.css';
 import './Drillhole.css';
 import { useProjectData } from '../context/ProjectDataContext.jsx';
 import { isLocalGridProject, localCollarXY } from '../lib/projectCoordinates.js';
+import { appendUniqueHoles, collectSceneHoles, loadObjFilesSequentially } from '../lib/sceneImports.js';
 import { makeLocalProjector } from '../lib/localProjection.js';
 import { buildCategoricalColorMap, colorForCategory } from '../lib/categoricalColors.js';
 
@@ -64,6 +65,8 @@ function Drillhole() {
   const hasFramedContentRef = useRef(false);
   const objFileInputRef = useRef(null);
   const objMeshGroupsRef = useRef(new Map());
+  const projectGenerationRef = useRef(0);
+  const holesRef = useRef([]);
   const restoredCameraRef = useRef(false);
   const zoomSliderPrevRef = useRef(50);
 
@@ -79,6 +82,13 @@ function Drillhole() {
   const [addError, setAddError] = useState('');
   const [objMeshes, setObjMeshes] = useState([]);
   const [objError, setObjError] = useState('');
+  const [objLoading, setObjLoading] = useState('');
+  const [selectedMeshId, setSelectedMeshId] = useState(null);
+  const [holePageIndex, setHolePageIndex] = useState(0);
+  holesRef.current = holes;
+  const holeIdsInScene = useMemo(() => new Set(holes.map(hole => hole.id)), [holes]);
+  const holePage = Math.min(holePageIndex, Math.max(0, Math.ceil(holes.length / 100) - 1));
+  const selectedMesh = objMeshes.find(mesh => mesh.id === selectedMeshId) || null;
 
   const [selectedHole, setSelectedHole] = useState(null);
   const [controlMode, setControlMode] = useState('orbit');
@@ -162,10 +172,14 @@ function Drillhole() {
     return scale?.bins?.length ? scale : null;
   }, [selectedAssayIntervalsByHole, colorByVariable, isCategorical]);
 
-  // Parse survey rows once per project and keep them in memory; individual
-  // hole adds re-use this and only desurvey the picked hole. baselode's
+  // Parse survey rows once per project and retain the resulting traces for
+  // individual and bulk additions. baselode's
   // parseSurveyCSV is async, so we land it in state via useEffect.
   const [surveyRows, setSurveyRows] = useState(null);
+  const [parsedSurveySource, setParsedSurveySource] = useState(null);
+  const [parsedPrecomputedSource, setParsedPrecomputedSource] = useState(null);
+  const geometryReady = (!rawCsv?.survey?.length || parsedSurveySource === rawCsv.survey)
+    && (!rawCsv?.precomputed?.length || parsedPrecomputedSource === rawCsv.precomputed);
   useEffect(() => {
     if (!rawCsv?.survey?.length) {
       setSurveyRows(null);
@@ -180,7 +194,8 @@ function Drillhole() {
       .catch((e) => {
         console.warn('Survey parse failed:', e);
         if (!cancelled) setSurveyRows(null);
-      });
+      })
+      .finally(() => { if (!cancelled) setParsedSurveySource(rawCsv.survey); });
     return () => { cancelled = true; };
   }, [rawCsv?.survey]);
 
@@ -214,7 +229,8 @@ function Drillhole() {
       .catch((e) => {
         console.info('Precomputed desurvey parse failed:', e?.message);
         if (!cancelled) setPrecomputedByHole({});
-      });
+      })
+      .finally(() => { if (!cancelled) setParsedPrecomputedSource(rawCsv.precomputed); });
     return () => { cancelled = true; };
   }, [rawCsv?.precomputed]);
 
@@ -245,27 +261,16 @@ function Drillhole() {
     localGrid ? localCollarXY(collar) : (utmToLocal?.projectLatLng(lat, lng) || project?.(lat, lng) || null)
   ), [utmToLocal, project, localGrid]);
 
-  // Classify every collar by the 3D geometry it can actually produce, so the
-  // picker separates holes that render a real drill string from those that
-  // don't. Merely appearing in the survey rows isn't enough — a hole with a
-  // single survey station desurveys to one point (a collar, not a string), so
-  // we bucket on the resulting point count, not on presence:
-  //   • full     — precomputed OR desurvey yields >= 2 points → a drill trace
-  //   • collar   — no trace, but a precomputed point or a collar elevation
-  //                provides one accurate point (rendered at its true Z)
-  //   • noSurvey — no trace and no elevation → can't be placed in Z at all
+  // Retain the traces used for classification so a bulk add desurveys once.
+  const surveyedByHole = useMemo(() => {
+    if (!surveyRows?.length || !collars.length) return new Map();
+    try {
+      return new Map(desurveyHolesInSceneFrame(collars, surveyRows, projectLatLngToScene)
+        .map(hole => [hole.id, hole]));
+    } catch { return new Map(); }
+  }, [collars, surveyRows, projectLatLngToScene]);
+  const collarsById = useMemo(() => new Map(collars.map(collar => [collar.holeId, collar])), [collars]);
   const holeBuckets = useMemo(() => {
-    // Desurvey every collar once (single pass) and record the point count.
-    const desurveyCount = new Map();
-    if (surveyRows?.length && collars.length) {
-      let traces = [];
-      try { traces = desurveyHolesInSceneFrame(collars, surveyRows, projectLatLngToScene) || []; } catch (e) { traces = []; }
-      for (const t of traces) {
-        if (!t?.id) continue;
-        const n = (t.points || []).filter((p) => Number.isFinite(p.z)).length;
-        desurveyCount.set(t.id, Math.max(desurveyCount.get(t.id) || 0, n));
-      }
-    }
     const full = [];
     const collar = [];
     const noSurvey = [];
@@ -275,14 +280,15 @@ function Drillhole() {
       if (!id || seen.has(id)) continue;
       seen.add(id);
       const preN = precomputedByHole[id]?.points?.length || 0;
-      const geomN = Math.max(preN, desurveyCount.get(id) || 0);
+      // Classification follows the same precomputed-first rule as adding.
+      const geomN = preN || surveyedByHole.get(id)?.points?.length || 0;
       if (geomN >= 2) full.push(id);
       else if (preN >= 1 || Number.isFinite(c.elevation)) collar.push(id);
       else noSurvey.push(id);
     }
     full.sort(); collar.sort(); noSurvey.sort();
     return { full, collar, noSurvey };
-  }, [collars, surveyRows, precomputedByHole, projectLatLngToScene]);
+  }, [collars, surveyedByHole, precomputedByHole]);
 
   // Reset scene-holes whenever the project changes underneath us. Without
   // this, leftover holes from a previous project would refuse to clear.
@@ -290,14 +296,20 @@ function Drillhole() {
   // project's collars, so keeping them would leave stale geometry in the
   // scene and in the bounds.
   useEffect(() => {
+    projectGenerationRef.current += 1;
     setHoles([]);
+    setHolePageIndex(0);
+    setSelectedMeshId(null);
+    setSelectedHole(null);
+    setObjLoading('');
     setAddError('');
     setError('');
     setSelectedHoleId('');
     setSelectedCollarHoleId('');
     setSelectedNoSurveyHoleId('');
     if (objMeshGroupsRef.current.size) {
-      objMeshGroupsRef.current.forEach((group) => {
+      objMeshGroupsRef.current.forEach((group, id) => {
+        sceneRef.current?.unregisterMeshObject(id);
         sceneRef.current?.scene?.remove(group);
         disposeObject3D(group);
       });
@@ -307,147 +319,90 @@ function Drillhole() {
     setObjError('');
   }, [collars, rawCsv?.survey, rawCsv?.precomputed]);
 
-  // De-dupe happens inside the functional updater so the latest state is
-  // consulted, not whatever `holes` was in the closure when this callback
-  // was created. That removes a TOCTOU window if Add is fired twice before
-  // React commits the first append. As a bonus we can drop `holes` from
-  // the deps so the callback stays referentially stable.
-  const addHoleToScene = useCallback((holeId) => {
-    if (!holeId) return;
-    setAddError('');
-
-    const appendIfNew = (entry) => {
-      setHoles((prev) => (prev.some((h) => h.id === entry.id) ? prev : [...prev, entry]));
-    };
-
-    // 1) Precomputed wins. Precomputed desurvey points are stored in the
-    // project's projected CRS (UTM/MGA easting-northing), whereas the survey
-    // path below emits local meters via `project`. Reproject them into the
-    // same local frame so the whole scene — holes and loaded OBJ meshes —
-    // shares one coordinate system. Falls back to the source frame when there
-    // are no collar control points to fit the transform from.
+  const resolveSceneHole = useCallback(holeId => {
     const pre = precomputedByHole[holeId];
-    if (pre) {
-      appendIfNew(toLocalFrameHole(pre, utmToLocal));
-      return;
-    }
+    if (pre) return toLocalFrameHole(pre, utmToLocal);
+    const surveyed = surveyedByHole.get(holeId);
+    if (surveyed?.points?.length) return surveyed;
+    const collar = collarsById.get(holeId);
+    if (!collar || !Number.isFinite(collar.elevation)) throw new Error('No collar elevation or trace');
+    const xy = projectLatLngToScene(collar.lat, collar.lng, collar);
+    if (!Number.isFinite(xy?.x) || !Number.isFinite(xy?.y)) throw new Error('No horizontal coordinates');
+    return { id: holeId, project: collar.project, points: [{ ...xy, z: collar.elevation, md: 0 }] };
+  }, [precomputedByHole, surveyedByHole, collarsById, utmToLocal, projectLatLngToScene]);
 
-    // 2) Survey-based desurvey for just this one collar.
-    if (!surveyRows) {
-      setAddError(`No survey data available for ${holeId}.`);
-      return;
-    }
-    if (!project) {
-      setAddError('Local projection not ready (no collars).');
-      return;
-    }
-    const collar = collars.find((c) => c.holeId === holeId);
-    if (!collar) {
-      setAddError(`Collar not found for ${holeId}.`);
-      return;
-    }
-    let desurveyed;
-    try {
-      // The canonical desurvey already emits scene-frame x/y and RL Z, so the
-      // trace needs no reprojection or collar-elevation lift here.
-      desurveyed = desurveyHolesInSceneFrame([collar], surveyRows, projectLatLngToScene);
-    } catch (e) {
-      setAddError(e?.message || `Desurvey failed for ${holeId}.`);
-      return;
-    }
-    if (!desurveyed?.length) {
-      setAddError(`No survey rows match ${holeId}.`);
-      return;
-    }
-    const h = desurveyed[0];
-    if (!h.points?.length) {
-      setAddError(`No projectable points for ${holeId}.`);
-      return;
-    }
-    appendIfNew({ id: h.id, project: h.project, points: h.points });
-  }, [collars, surveyRows, precomputedByHole, project, utmToLocal, projectLatLngToScene]);
+  const addHolesToScene = useCallback(ids => {
+    const { holes: additions, errors } = collectSceneHoles(ids.filter(id => !holeIdsInScene.has(id)), resolveSceneHole);
+    setHoles(previous => appendUniqueHoles(previous, additions));
+    setAddError(errors.join('; '));
+  }, [holeIdsInScene, resolveSceneHole]);
+  const addHoleToScene = useCallback(id => addHolesToScene([id]), [addHolesToScene]);
 
-  // Add a collar-only hole: no desurveyed string, but the collar carries an
-  // elevation, so we can place a single accurate point at (collar x/y, RL).
-  // The scene renders a lone point as a collar circle. Kept separate from
-  // addHoleToScene because there is no trace to desurvey — without survey
-  // stations the desurvey has nothing to integrate, so the collar RL is the
-  // only Z we have.
-  const addCollarPointToScene = useCallback((holeId) => {
-    if (!holeId) return;
-    setAddError('');
-    if (!project) {
-      setAddError('Local projection not ready (no collars).');
-      return;
-    }
-    const collar = collars.find((c) => c.holeId === holeId);
-    if (!collar) {
-      setAddError(`Collar not found for ${holeId}.`);
-      return;
-    }
-    const z = Number(collar.elevation);
-    if (!Number.isFinite(z)) {
-      setAddError(`No collar elevation for ${holeId}.`);
-      return;
-    }
-    const xy = localGrid ? localCollarXY(collar) : (utmToLocal?.projectLatLng(collar.lat, collar.lng) || project(collar.lat, collar.lng));
-    if (!Number.isFinite(xy?.x) || !Number.isFinite(xy?.y)) {
-      setAddError(`Could not project collar for ${holeId}.`);
-      return;
-    }
-    const entry = { id: holeId, project: collar.project, points: [{ x: xy.x, y: xy.y, z, md: 0 }] };
-    setHoles((prev) => (prev.some((h) => h.id === entry.id) ? prev : [...prev, entry]));
-  }, [collars, project, utmToLocal, localGrid]);
-
-  const removeHoleFromScene = useCallback((holeId) => {
-    setHoles((prev) => prev.filter((h) => h.id !== holeId));
+  const removeHoleFromScene = useCallback(holeId => {
+    setHoles(previous => previous.filter(hole => hole.id !== holeId));
   }, []);
 
-  const removeObjMeshFromScene = useCallback((meshId) => {
-    const group = objMeshGroupsRef.current.get(meshId);
-    if (group && sceneRef.current?.scene) {
-      sceneRef.current.scene.remove(group);
-      disposeObject3D(group);
-    }
-    objMeshGroupsRef.current.delete(meshId);
-    setObjMeshes((prev) => prev.filter((mesh) => mesh.id !== meshId));
+  const selectObjMesh = useCallback(id => {
+    sceneRef.current?.selectMeshObject(id);
+    setSelectedMeshId(id);
+    setSelectedHole(null);
+  }, []);
+  const changeMeshColor = useCallback((id, color) => {
+    sceneRef.current?.setMeshObjectColor(id, color);
+    setObjMeshes(previous => previous.map(mesh => mesh.id === id ? { ...mesh, color } : mesh));
+  }, []);
+  const removeObjMeshFromScene = useCallback(id => {
+    const group = objMeshGroupsRef.current.get(id);
+    sceneRef.current?.unregisterMeshObject(id);
+    if (group) { group.removeFromParent(); disposeObject3D(group); }
+    objMeshGroupsRef.current.delete(id);
+    setObjMeshes(previous => previous.filter(mesh => mesh.id !== id));
+    setSelectedMeshId(previous => previous === id ? null : previous);
   }, []);
 
-  const loadObjFile = useCallback(async (file) => {
-    if (!file || !sceneRef.current?.scene) return;
+  const loadObjFiles = useCallback(async fileList => {
+    const files = Array.from(fileList || []);
+    const scene = sceneRef.current;
+    if (!files.length || !scene?.scene || objLoading) return;
+    if (objFileInputRef.current) objFileInputRef.current.value = '';
+    const generation = projectGenerationRef.current;
+    const isCurrent = () => projectGenerationRef.current === generation && sceneRef.current === scene;
     setObjError('');
-    try {
-      const hadHoles = holes.length > 0;
-      const text = await file.text();
-      const group = new OBJLoader().parse(text);
-      // Georeference into the local frame when the mesh's coordinates land
-      // inside the project's grid extent — that's how we tell a CRS-projected
-      // export apart from an OBJ that is already in local meters (which we
-      // must leave untouched, or the transform would fling it ~6,000 km away).
-      const georeferenced = applyGeoreferenceIfInRange(group, utmToLocal);
-      const id = `${file.name}:${file.lastModified || Date.now()}:${Math.random().toString(36).slice(2)}`;
-      const stats = prepareObjMeshGroup(group, file.name);
-      if (!stats.meshCount) throw new Error('OBJ file did not contain any mesh geometry.');
-      sceneRef.current.scene.add(group);
-      objMeshGroupsRef.current.set(id, group);
-      reconcileSceneBounds(sceneRef.current, holes, objMeshGroupsRef.current);
-      // Keep existing drillholes in view when adding a mesh. A large or
-      // spatially separate OBJ can make the combined bounds enormous, and
-      // refitting here makes the holes appear to disappear. When the OBJ is
-      // the first content, frame it as before; users can always use the
-      // explicit Fit to scene control after adding more content.
-      if (!hadHoles) sceneRef.current.focusOnLastBounds?.(1.2);
-      // The mesh is now framed content: without this, adding the first hole
-      // afterwards would count as "first content" and refit the camera to
-      // hole-only bounds, throwing the loaded mesh out of view.
+    const result = await loadObjFilesSequentially(files, {
+      isCurrent,
+      onProgress: (index, total, name) => setObjLoading(`Loading ${index}/${total}: ${name}`),
+      load: async file => {
+        const text = await file.text();
+        if (!isCurrent()) return null;
+        const group = new OBJLoader().parse(text);
+        const id = crypto.randomUUID();
+        try {
+          const georeferenced = applyGeoreferenceIfInRange(group, utmToLocal);
+          const stats = prepareObjMeshGroup(group, file.name);
+          if (!stats.meshCount) throw new Error('No mesh geometry');
+          scene.registerMeshObject(id, group, { name: file.name });
+          scene.scene.add(group);
+          objMeshGroupsRef.current.set(id, group);
+          return { id, name: file.name, color: '#f2c94c', georeferenced, ...stats };
+        } catch (error) {
+          scene.unregisterMeshObject(id);
+          group.removeFromParent();
+          disposeObject3D(group);
+          throw error;
+        }
+      },
+    });
+    if (result.cancelled || !isCurrent()) return;
+    setObjMeshes(previous => [...previous, ...result.entries]);
+    setObjError(result.errors.join('; '));
+    setObjLoading('');
+    if (result.entries.length) {
+      reconcileSceneBounds(scene, holesRef.current, objMeshGroupsRef.current);
+      if (!holesRef.current.length) scene.focusOnLastBounds?.(1.2);
       hasFramedContentRef.current = true;
-      setObjMeshes((prev) => [...prev, { id, name: file.name, georeferenced, ...stats }]);
-    } catch (e) {
-      setObjError(e?.message || String(e));
-    } finally {
-      if (objFileInputRef.current) objFileInputRef.current.value = '';
+      selectObjMesh(result.entries[0].id);
     }
-  }, [holes, utmToLocal]);
+  }, [objLoading, utmToLocal, selectObjMesh]);
 
   // Initialise scene once.
   useEffect(() => {
@@ -455,7 +410,11 @@ function Drillhole() {
     const scene = new Baselode3DScene();
     let viewSaveInterval = null;
     scene.init(containerRef.current);
-    scene.setDrillholeClickHandler((meta) => setSelectedHole(meta));
+    scene.setDrillholeClickHandler(meta => { setSelectedHole(meta); setSelectedMeshId(null); });
+    scene.setMeshClickHandler(meta => { setSelectedMeshId(meta.id); setSelectedHole(null); });
+    const clearSelection = () => { setSelectedHole(null); setSelectedMeshId(null); };
+    scene.setEmptyClickHandler(clearSelection);
+    scene.setEscapeHandler(clearSelection);
     scene.setControlMode(controlMode);
     if (typeof scene.setViewChangeHandler === 'function') {
       scene.setViewChangeHandler((viewState) => saveCachedCameraView(viewState));
@@ -478,9 +437,12 @@ function Drillhole() {
       const viewState = getSceneViewState(scene);
       if (viewState) saveCachedCameraView(viewState);
       window.removeEventListener('resize', handleResize);
-      objMeshGroupsRef.current.forEach((group) => disposeObject3D(group));
+      projectGenerationRef.current += 1;
+      scene.clearMeshObjects();
+      objMeshGroupsRef.current.forEach(group => { group.removeFromParent(); disposeObject3D(group); });
       objMeshGroupsRef.current.clear();
       scene.dispose();
+      sceneRef.current = null;
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -495,13 +457,13 @@ function Drillhole() {
   useEffect(() => {
     if (sceneRef.current && holes?.length && structureRows?.length) {
       sceneRef.current.setStructuralDiscs(structureRows, holes, { radius: 5, opacity: 0.75 });
-    }
+    } else sceneRef.current?.setStructuralDiscs([], []);
   }, [holes, structureRows]);
   useEffect(() => { sceneRef.current?.setStructuralDiscsVisible(showStructuralDiscs); }, [showStructuralDiscs]);
 
   // Strip logs.
   useEffect(() => {
-    if (!sceneRef.current || !holes?.length) return;
+    if (!sceneRef.current) return;
     if (stripLogData?.length) sceneRef.current.setStripLogs(holes, stripLogData);
     else sceneRef.current.clearStripLogs?.();
   }, [holes, stripLogData]);
@@ -564,6 +526,10 @@ function Drillhole() {
             ))}
           </select>
         </label>
+        <button type="button" className="secondary-button" onClick={() => addHolesToScene(holeBuckets.full)}
+          disabled={!geometryReady || !holeBuckets.full.some(id => !holeIdsInScene.has(id))}>
+          Add all holes
+        </button>
         <button
           type="button"
           className="primary-button"
@@ -571,7 +537,7 @@ function Drillhole() {
             if (!selectedHoleId) return;
             addHoleToScene(selectedHoleId);
           }}
-          disabled={!selectedHoleId || holes.some((h) => h.id === selectedHoleId)}
+          disabled={!geometryReady || !selectedHoleId || holeIdsInScene.has(selectedHoleId)}
         >
           {selectedHoleId && holes.some((h) => h.id === selectedHoleId)
             ? 'Already in scene'
@@ -594,15 +560,18 @@ function Drillhole() {
                 ))}
               </select>
             </label>
+            <button type="button" className="secondary-button" onClick={() => addHolesToScene(holeBuckets.collar)}
+              disabled={!geometryReady || !holeBuckets.collar.some(id => !holeIdsInScene.has(id))}>
+              Add all holes
+            </button>
             <button
               type="button"
               className="primary-button"
               onClick={() => {
                 if (!selectedCollarHoleId) return;
-                if (precomputedByHole[selectedCollarHoleId]) addHoleToScene(selectedCollarHoleId);
-                else addCollarPointToScene(selectedCollarHoleId);
+                addHoleToScene(selectedCollarHoleId);
               }}
-              disabled={!selectedCollarHoleId || holes.some((h) => h.id === selectedCollarHoleId)}
+              disabled={!geometryReady || !selectedCollarHoleId || holeIdsInScene.has(selectedCollarHoleId)}
             >
               {selectedCollarHoleId && holes.some((h) => h.id === selectedCollarHoleId)
                 ? 'Already in scene'
@@ -638,7 +607,7 @@ function Drillhole() {
           </div>
           <div className="three-d-section-help">Visible in the 3D view. Remove a hole with ×.</div>
           <ul className="three-d-added-list" aria-label="Holes in scene">
-            {holes.map((h) => (
+            {holes.slice(holePage * 100, (holePage + 1) * 100).map((h) => (
               <li key={h.id}>
                 <span className="hole-id" title={h.id}>{h.id}</span>
                 <button
@@ -653,6 +622,11 @@ function Drillhole() {
               </li>
             ))}
           </ul>
+          {holes.length > 100 && <div className="three-d-list-pages">
+            <button type="button" disabled={holePage === 0} onClick={() => setHolePageIndex(holePage - 1)}>Previous</button>
+            <span>{holePage * 100 + 1}–{Math.min((holePage + 1) * 100, holes.length)} of {holes.length}</span>
+            <button type="button" disabled={(holePage + 1) * 100 >= holes.length} onClick={() => setHolePageIndex(holePage + 1)}>Next</button>
+          </div>}
         </section>
       )}
       <div className="three-d-divider" />
@@ -660,30 +634,39 @@ function Drillhole() {
         type="button"
         className="secondary-button"
         onClick={() => objFileInputRef.current?.click()}
+        disabled={Boolean(objLoading)}
       >
-        Load OBJ mesh
+        Load OBJ meshes
       </button>
       <input
         ref={objFileInputRef}
         type="file"
-        accept=".obj,text/plain"
+        accept=".obj"
+        multiple
         className="visually-hidden"
-        onChange={(e) => loadObjFile(e.target.files?.[0])}
+        onChange={e => loadObjFiles(e.target.files)}
       />
-      {objError && <div className="error-banner small">{objError}</div>}
+      {objLoading && <div role="status" className="three-d-section-help">{objLoading}</div>}
+      {objError && <div role="alert" className="error-banner small">{objError}</div>}
+      {selectedMesh && <section className="three-d-mesh-properties" aria-label="Selected mesh">
+        <strong>{selectedMesh.name}</strong>
+        <label>Colour <input type="color" value={selectedMesh.color} aria-label={`Colour of ${selectedMesh.name}`}
+          onChange={event => changeMeshColor(selectedMesh.id, event.target.value)} /></label>
+      </section>}
       {objMeshes.length > 0 && (
         <ul className="three-d-added-list" aria-label="OBJ meshes in scene">
           {objMeshes.map((mesh) => (
             <li key={mesh.id}>
-              <span
-                className="hole-id"
+              <button type="button" onClick={() => selectObjMesh(mesh.id)}
+                aria-pressed={selectedMeshId === mesh.id}
+                className="obj-mesh-select"
                 title={`${mesh.name} (${mesh.vertexCount} vertices) — ${mesh.georeferenced ? 'georeferenced to project collars' : 'loaded in raw mesh coordinates'}`}
               >
-                {mesh.name}
-              </span>
+                <span className="obj-mesh-swatch" style={{ background: mesh.color }} />{mesh.name}
+              </button>
               {!mesh.georeferenced && (
-                <span className="obj-mesh-flag" title="Mesh coordinates were not aligned to the project — load collars in the same CRS to overlay drillholes.">
-                  raw
+                <span className="obj-mesh-flag" title={localGrid ? 'Supplied local coordinates retained.' : 'Loaded in source coordinates without a geographic transform.'}>
+                  {localGrid ? 'local' : 'raw'}
                 </span>
               )}
               <button
