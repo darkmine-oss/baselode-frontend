@@ -426,3 +426,15 @@
 @media (prefers-reduced-motion: reduce) {
   .scene-loading-spinner { animation: none; }
 }
+
+.scene-graphics-error {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  right: 16px;
+  z-index: 40;
+  padding: 12px 16px;
+  background: var(--color-surface-container-high);
+  color: var(--color-on-surface);
+  border: 1px solid var(--color-outline-variant);
+}

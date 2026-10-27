@@ -2,7 +2,7 @@
  * Copyright (C) 2026 Darkmine Pty Ltd
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import * as THREE from 'three';
 import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader.js';
@@ -52,6 +52,11 @@ const CAMERA_CACHE_KEY = 'baselode-viewer-camera-v2';
 const SCENE_BG_KEY = 'baselode-viewer-3d-dark-bg-v1';
 const EMPTY_GEOMETRY = { surveyedByHole: new Map(), precomputedByHole: {}, errors: [] };
 
+// Selection changes do not need to recreate tens of thousands of options.
+const HoleOptions = memo(function HoleOptions({ ids }) {
+  return ids.map(id => <option key={id} value={id}>{id}</option>);
+});
+
 function readInitialDarkBg() {
   try {
     const v = localStorage.getItem(SCENE_BG_KEY);
@@ -96,6 +101,7 @@ function Drillhole() {
   const [selectedHole, setSelectedHole] = useState(null);
   const [controlMode, setControlMode] = useState('orbit');
   const [error, setError] = useState('');
+  const [graphicsError, setGraphicsError] = useState('');
   const [colorByVariable, setColorByVariable] = useState('None');
   const [showStructuralDiscs, setShowStructuralDiscs] = useState(true);
   const [showStripLogs, setShowStripLogs] = useState(false);
@@ -385,9 +391,17 @@ function Drillhole() {
   // Initialise scene once.
   useEffect(() => {
     if (!containerRef.current) return;
-    const scene = new Baselode3DScene({ extentBox: true });
+    const scene = new Baselode3DScene({ extentBox: true, hoverPicking: false });
     let viewSaveInterval = null;
     scene.init(containerRef.current);
+    const canvas = scene.renderer.domElement;
+    const onContextLost = event => {
+      event.preventDefault();
+      setGraphicsError('Graphics rendering stopped. Waiting for the graphics context to recover; reload the page to rebuild the scene.');
+    };
+    const onContextRestored = () => setGraphicsError('');
+    canvas.addEventListener('webglcontextlost', onContextLost);
+    canvas.addEventListener('webglcontextrestored', onContextRestored);
     scene.setDrillholeClickHandler(meta => { setSelectedHole(meta); setSelectedMeshId(null); });
     scene.setMeshClickHandler(meta => { setSelectedMeshId(meta.id); setSelectedHole(null); });
     const clearSelection = () => { setSelectedHole(null); setSelectedMeshId(null); };
@@ -415,6 +429,8 @@ function Drillhole() {
       const viewState = getSceneViewState(scene);
       if (viewState) saveCachedCameraView(viewState);
       window.removeEventListener('resize', handleResize);
+      canvas.removeEventListener('webglcontextlost', onContextLost);
+      canvas.removeEventListener('webglcontextrestored', onContextRestored);
       projectGenerationRef.current += 1;
       scene.clearMeshObjects();
       objMeshGroupsRef.current.forEach(group => { group.removeFromParent(); disposeObject3D(group); });
@@ -460,13 +476,20 @@ function Drillhole() {
       const firstContent = holes.length > 0 && !hasFramedContentRef.current;
       const preserveView = !firstContent
         && (renderedHolesRef.current === holes || restoredCameraRef.current);
-      sceneRef.current.setDrillholes(holes, {
-        selectedAssayVariable: colorByVariable === 'None' ? '' : colorByVariable,
-        assayIntervalsByHole: isCategorical ? geologyCategoryIntervalsByHole : selectedAssayIntervalsByHole,
-        preserveView,
-        isCategoricalVariable: isCategorical,
-        categoryColorMap: categoricalColorMap,
-      });
+      try {
+        sceneRef.current.setDrillholes(holes, {
+          labels: false,
+          selectedAssayVariable: colorByVariable === 'None' ? '' : colorByVariable,
+          assayIntervalsByHole: isCategorical ? geologyCategoryIntervalsByHole : selectedAssayIntervalsByHole,
+          preserveView,
+          isCategoricalVariable: isCategorical,
+          categoryColorMap: categoricalColorMap,
+        });
+        setError('');
+      } catch (failure) {
+        setError(`Unable to draw drillholes: ${failure.message || failure}`);
+        return;
+      }
       if (firstContent) enforceZUpOrbit(sceneRef.current);
       if (holes.length > 0) hasFramedContentRef.current = true;
       renderedHolesRef.current = holes;
@@ -501,9 +524,7 @@ function Drillhole() {
             disabled={!geometryReady || !holeBuckets.full.length}
           >
             <option value="">{!geometryReady ? 'Preparing drillhole traces…' : holeBuckets.full.length ? 'Pick a hole…' : 'No holes with a 3D string'}</option>
-            {holeBuckets.full.map((id) => (
-              <option key={id} value={id}>{id}</option>
-            ))}
+            <HoleOptions ids={holeBuckets.full} />
           </select>
         </label>
         <button type="button" className="secondary-button" onClick={() => addHolesToScene(holeBuckets.full)}
@@ -535,9 +556,7 @@ function Drillhole() {
                 onChange={(e) => setSelectedCollarHoleId(e.target.value)}
               >
                 <option value="">Pick a hole…</option>
-                {holeBuckets.collar.map((id) => (
-                  <option key={id} value={id}>{id}</option>
-                ))}
+                <HoleOptions ids={holeBuckets.collar} />
               </select>
             </label>
             <button type="button" className="secondary-button" onClick={() => addHolesToScene(holeBuckets.collar)}
@@ -571,9 +590,7 @@ function Drillhole() {
               title="These holes have no desurveyed trace and no collar elevation, so they can't be placed in 3D."
             >
               <option value="">{`${holeBuckets.noSurvey.length} hole${holeBuckets.noSurvey.length === 1 ? '' : 's'} — no 3D geometry`}</option>
-              {holeBuckets.noSurvey.map((id) => (
-                <option key={id} value={id}>{id}</option>
-              ))}
+              <HoleOptions ids={holeBuckets.noSurvey} />
             </select>
           </label>
         )}
@@ -804,6 +821,7 @@ function Drillhole() {
       </div>
 
       <div className="canvas-container" ref={containerRef}>
+        {graphicsError && <div className="scene-graphics-error" role="alert">{graphicsError}</div>}
         {geometryLoading && <div className="scene-loading" role="status" aria-live="polite">
           <span className="scene-loading-spinner" aria-hidden="true" />
           <span>{currentGeometry?.message || 'Preparing 3D data…'}</span>
