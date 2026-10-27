@@ -23,6 +23,7 @@ import './Drillhole.css';
 import { useProjectData } from '../context/ProjectDataContext.jsx';
 import { isLocalGridProject, localCollarXY } from '../lib/projectCoordinates.js';
 import { appendUniqueHoles, collectSceneHoles, loadObjFilesSequentially } from '../lib/sceneImports.js';
+import { reconcileSceneBounds } from '../lib/sceneBounds.js';
 import { makeLocalProjector } from '../lib/localProjection.js';
 import { buildCategoricalColorMap, colorForCategory } from '../lib/categoricalColors.js';
 
@@ -96,6 +97,7 @@ function Drillhole() {
   const [colorByVariable, setColorByVariable] = useState('None');
   const [showStructuralDiscs, setShowStructuralDiscs] = useState(true);
   const [showStripLogs, setShowStripLogs] = useState(false);
+  const [showExtentBox, setShowExtentBox] = useState(true);
   // Default to ~1/4 along the slider (closer to Ortho than full Perspective).
   const [perspectiveLevel, setPerspectiveLevel] = useState(1);
   const [darkBackground, setDarkBackground] = useState(readInitialDarkBg);
@@ -351,6 +353,24 @@ function Drillhole() {
     sceneRef.current?.setMeshObjectColor(id, color);
     setObjMeshes(previous => previous.map(mesh => mesh.id === id ? { ...mesh, color } : mesh));
   }, []);
+  const changeMeshDisplay = useCallback((id, changes) => {
+    const scene = sceneRef.current;
+    if (!scene) return;
+    try {
+      if ('visible' in changes) scene.setMeshObjectVisibility(id, changes.visible);
+      if ('opacity' in changes) scene.setMeshObjectOpacity(id, changes.opacity);
+      if ('wireframe' in changes) scene.setMeshObjectWireframe(id, changes.wireframe);
+      const style = scene.getMeshObjectStyle(id);
+      setObjMeshes(previous => previous.map(mesh => mesh.id === id ? { ...mesh, ...style } : mesh));
+      setObjError('');
+    } catch (error) { setObjError(error.message || String(error)); }
+  }, []);
+  const setAllMeshesVisible = useCallback(visible => {
+    const scene = sceneRef.current;
+    if (!scene) return;
+    for (const mesh of objMeshes) scene.setMeshObjectVisibility(mesh.id, visible);
+    setObjMeshes(previous => previous.map(mesh => ({ ...mesh, visible })));
+  }, [objMeshes]);
   const removeObjMeshFromScene = useCallback(id => {
     const group = objMeshGroupsRef.current.get(id);
     sceneRef.current?.unregisterMeshObject(id);
@@ -383,7 +403,7 @@ function Drillhole() {
           scene.registerMeshObject(id, group, { name: file.name });
           scene.scene.add(group);
           objMeshGroupsRef.current.set(id, group);
-          return { id, name: file.name, color: '#f2c94c', georeferenced, ...stats };
+          return { id, name: file.name, color: '#f2c94c', georeferenced, ...scene.getMeshObjectStyle(id), ...stats };
         } catch (error) {
           scene.unregisterMeshObject(id);
           group.removeFromParent();
@@ -397,7 +417,7 @@ function Drillhole() {
     setObjError(result.errors.join('; '));
     setObjLoading('');
     if (result.entries.length) {
-      reconcileSceneBounds(scene, holesRef.current, objMeshGroupsRef.current);
+      reconcileSceneBounds(scene, holesRef.current);
       if (!holesRef.current.length) scene.focusOnLastBounds?.(1.2);
       hasFramedContentRef.current = true;
       selectObjMesh(result.entries[0].id);
@@ -407,7 +427,7 @@ function Drillhole() {
   // Initialise scene once.
   useEffect(() => {
     if (!containerRef.current) return;
-    const scene = new Baselode3DScene();
+    const scene = new Baselode3DScene({ extentBox: true });
     let viewSaveInterval = null;
     scene.init(containerRef.current);
     scene.setDrillholeClickHandler(meta => { setSelectedHole(meta); setSelectedMeshId(null); });
@@ -453,6 +473,8 @@ function Drillhole() {
   useEffect(() => { sceneRef.current?.setBackground(sceneBackground); }, [sceneBackground]);
   useEffect(() => { sceneRef.current?.setCameraFov(FOV_STEPS[perspectiveLevel]); }, [perspectiveLevel]);
 
+  useEffect(() => { sceneRef.current?.setExtentBoxVisible(showExtentBox); }, [showExtentBox]);
+
   // Structural discs.
   useEffect(() => {
     if (sceneRef.current && holes?.length && structureRows?.length) {
@@ -494,13 +516,13 @@ function Drillhole() {
       // setDrillholes overwrites scene.lastBounds with hole-only bounds, so
       // fold any loaded OBJ meshes back in immediately — the effect below
       // doesn't re-run for colour/interval changes.
-      reconcileSceneBounds(sceneRef.current, holes, objMeshGroupsRef.current);
+      reconcileSceneBounds(sceneRef.current, holes);
     }
   }, [holes, colorByVariable, selectedAssayIntervalsByHole, isCategorical, geologyCategoryIntervalsByHole, categoricalColorMap]);
 
   useEffect(() => {
     if (!sceneRef.current) return;
-    reconcileSceneBounds(sceneRef.current, holes, objMeshGroupsRef.current);
+    reconcileSceneBounds(sceneRef.current, holes);
   }, [holes, objMeshes]);
 
   const sidebarTarget = typeof document !== 'undefined' ? document.getElementById('three-d-controls-slot') : null;
@@ -652,11 +674,29 @@ function Drillhole() {
         <strong>{selectedMesh.name}</strong>
         <label>Colour <input type="color" value={selectedMesh.color} aria-label={`Colour of ${selectedMesh.name}`}
           onChange={event => changeMeshColor(selectedMesh.id, event.target.value)} /></label>
+        <label>Visible <input type="checkbox" checked={selectedMesh.visible}
+          aria-label={`Show ${selectedMesh.name}`}
+          onChange={event => changeMeshDisplay(selectedMesh.id, { visible: event.target.checked })} /></label>
+        <label>Opacity <output>{Math.round(selectedMesh.opacity * 100)}%</output></label>
+        <input type="range" min="0" max="1" step="0.01" value={selectedMesh.opacity}
+          aria-label={`Opacity of ${selectedMesh.name}`}
+          onChange={event => changeMeshDisplay(selectedMesh.id, { opacity: Number(event.target.value) })} />
+        <label>Wireframe edges <input type="checkbox" checked={selectedMesh.wireframe}
+          aria-label={`Wireframe edges of ${selectedMesh.name}`}
+          onChange={event => changeMeshDisplay(selectedMesh.id, { wireframe: event.target.checked })} /></label>
       </section>}
+      {objMeshes.length > 0 && <div className="three-d-mesh-actions">
+        <button type="button" className="secondary-button" onClick={() => setAllMeshesVisible(true)}
+          disabled={objMeshes.every(mesh => mesh.visible)}>Show all meshes</button>
+        <button type="button" className="secondary-button" onClick={() => setAllMeshesVisible(false)}
+          disabled={objMeshes.every(mesh => !mesh.visible)}>Hide all meshes</button>
+      </div>}
       {objMeshes.length > 0 && (
         <ul className="three-d-added-list" aria-label="OBJ meshes in scene">
           {objMeshes.map((mesh) => (
             <li key={mesh.id}>
+              <input type="checkbox" checked={mesh.visible} aria-label={`Visibility of ${mesh.name}`}
+                onChange={event => changeMeshDisplay(mesh.id, { visible: event.target.checked })} />
               <button type="button" onClick={() => selectObjMesh(mesh.id)}
                 aria-pressed={selectedMeshId === mesh.id}
                 className="obj-mesh-select"
@@ -735,6 +775,10 @@ function Drillhole() {
               Strip logs
             </label>
           )}
+          <label className="drillhole-color-control">
+            <input type="checkbox" checked={showExtentBox} onChange={event => setShowExtentBox(event.target.checked)} />
+            Scene extent box
+          </label>
           <label className="drillhole-projection-slider">
             Ortho
             <input
@@ -1323,28 +1367,6 @@ function prepareObjMeshGroup(group, name) {
   const box = new THREE.Box3().setFromObject(group);
   const bounds = box.isEmpty() ? null : boundsFromBox(box);
   return { meshCount, vertexCount, bounds };
-}
-
-function reconcileSceneBounds(scene, holes, objGroups) {
-  const box = new THREE.Box3();
-  let hasBounds = false;
-  (holes || []).forEach((hole) => {
-    (hole.points || []).forEach((point) => {
-      const x = Number(point?.x), y = Number(point?.y), z = Number(point?.z);
-      if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(z)) return;
-      box.expandByPoint(new THREE.Vector3(x, y, z));
-      hasBounds = true;
-    });
-  });
-  objGroups.forEach((group) => {
-    const objBox = new THREE.Box3().setFromObject(group);
-    if (objBox.isEmpty()) return;
-    box.union(objBox);
-    hasBounds = true;
-  });
-  // Clear on empty as well — Fit/Recenter read scene.lastBounds, and stale
-  // bounds from removed content would steer the camera at deleted geometry.
-  scene.lastBounds = hasBounds ? boundsFromBox(box) : null;
 }
 
 function boundsFromBox(box) {

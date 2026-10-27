@@ -5,13 +5,16 @@ Status: implemented on feature branches for local review; no merge or release.
 - Add all holes below the full-trace picker and below the point-only picker. Each button adds its own group, preserves existing holes and avoids duplicates. The sidebar list uses pages of 100 entries; every added hole remains in the scene.
 - Select multiple OBJ files in one file dialog. Files load in sequence with progress; invalid files are reported by name without stopping subsequent imports. Project changes cancel pending imports.
 - Select an imported mesh by clicking its surface or its sidebar name, then edit its colour. The whole imported group is highlighted. Colour changes remain in memory for the current scene and leave source files and geometry unchanged.
-- Mesh registration, picking, material isolation and colour updates use the Baselode feature branch. The application owns file loading, controls and scene membership.
+- Hide individual meshes or use Show all meshes / Hide all meshes without unloading. Hidden meshes remain selectable from the sidebar for editing.
+- Set opacity from 0–100% and overlay wireframe edges on a selected mesh. All triangle edges are included, with no triangle-count cutoff. Edges follow the surface colour and opacity.
+- Toggle the labelled Scene extent box above the viewport. Its bounds and Fit use the loaded holes and visible meshes; hidden or fully transparent meshes are excluded. No camera movement occurs merely from a style change.
+- Mesh registration, picking, material isolation, display updates and extent bounds use the Baselode feature branch. The application owns file loading, controls and scene membership.
 
 ## Local verification
 
 Use `npm run baselode:local -- /path/to/baselode/javascript/packages/baselode` and `npm run dev`. The helper verifies that `node_modules/baselode` resolves to the chosen checkout. `npm run dev:local` reuses the saved local path and rebuilds the library.
 
-Synthetic checks cover bulk additions, duplicate prevention, point-only holes, invalid files and cancelled imports. Shared-library tests cover nearest-hit selection, hidden meshes, material isolation, disposal and click callbacks. The complete shared suite (811 tests), viewer suite (13 tests), package/type checks and combined production build passed on macOS using Node 24.22.1. Interactive review remains manual.
+Synthetic checks cover bulk additions, duplicate prevention, point-only holes, invalid files and cancelled imports. Shared-library tests cover nearest-hit selection, hidden and transparent meshes, material isolation, wireframe edges and disposal, click callbacks, transformed bounds and extent-box updates. Viewer tests cover combined hole/mesh bounds and reuse of hole bounds during style edits. The full Baselode suite (822 tests), viewer suite (16 tests), package/type checks and combined production build passed using Node 24.22.1. Interactive review remains manual.
 
 Manual checks:
 
@@ -19,7 +22,10 @@ Manual checks:
 2. Select several OBJ files, including an invalid file; confirm later valid files still load.
 3. Click two different mesh surfaces and recolour each independently. Select the same meshes from the sidebar.
 4. Add or remove holes and change their colour variable; confirm imported meshes remain selectable and retain their colours.
-5. Remove a selected mesh, click empty space, press Escape, and switch projects during an import; confirm selection and pending files clear correctly.
+5. Hide/show individual meshes and all meshes, then set opacity to 0%, 50% and 100%. Confirm hidden and fully transparent meshes do not intercept clicks; use the sidebar to restore them.
+6. Enable wireframe edges on multiple meshes. Confirm triangles appear over the filled surfaces, follow colour/opacity changes and disappear when disabled or removed.
+7. Toggle Scene extent box, then hide/show or remove the outermost mesh. Confirm the extent and Fit follow visible content, retain holes and clear when the scene is empty.
+8. Remove a selected mesh, click empty space, press Escape, and switch projects during an import; confirm selection and pending files clear correctly.
 
 ## Options for subsequent review
 
@@ -27,11 +33,7 @@ These are proposals based on existing Geo application controls; they are not inc
 
 | Option | Purpose | Existing implementation |
 | --- | --- | --- |
-| Mesh visibility, Show all and Hide all | Compare surfaces without unloading files | Object picker and object table |
-| Mesh opacity | Inspect holes and contacts behind a surface | Object style controls |
-| Wireframe edges | Inspect triangulation and surface contacts | Geometry-object renderer; currently restricted to meshes below 200,000 triangles |
 | Zoom to selected objects | Fit the camera to a chosen subset | 3D view and object bounds |
 | Hole labels and fading unselected holes | Identify holes and retain surrounding context | 3D controls using Baselode annotations and filters |
 | Quantile colour classes | Show grade distributions alongside the existing equal-interval classes | Baselode colour API used in the Geo 3D view |
-| Scene extent box | Display spatial limits | Baselode extent-box option used in the Geo 3D view |
 | Polylines, point sets and block models | Add interpretation lines, samples and model cells; filter blocks by attributes | Geo object loaders and block display controls; requires additional viewer input contracts |

@@ -394,3 +394,8 @@
 .obj-mesh-select[aria-pressed="true"] { font-weight: 700; text-decoration: underline; }
 .obj-mesh-swatch { flex: 0 0 10px; height: 10px; border: 1px solid var(--color-outline-variant); }
 .three-d-list-pages { display: flex; align-items: center; justify-content: space-between; gap: 5px; font-size: 10px; }
+
+.three-d-mesh-actions { display: flex; gap: 6px; }
+.three-d-mesh-actions button { flex: 1; }
+.three-d-mesh-properties input[type="range"] { width: 100%; accent-color: hsl(var(--accent)); }
+.three-d-mesh-properties output { font-variant-numeric: tabular-nums; font-size: 12px; }

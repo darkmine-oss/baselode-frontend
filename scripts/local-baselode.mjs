@@ -21,8 +21,13 @@ function npm(argv, cwd) {
   if (result.status !== 0) process.exit(result.status || 1);
 }
 npm(['run', 'build'], target);
-npm(['install', '--no-save', '--package-lock=false', '--install-links=false', '--no-audit', '--no-fund', target], root);
-if (realpathSync(resolve(root, 'node_modules/baselode')) !== target) throw new Error('Local Baselode link verification failed');
+const installed = resolve(root, 'node_modules/baselode');
+// Rebuild the branch on every launch, but keep an existing correct link.
+// Reinstalling here needlessly resolves the viewer's floating dependencies.
+if (!existsSync(installed) || realpathSync(installed) !== target) {
+  npm(['install', '--no-save', '--package-lock=false', '--install-links=false', '--no-audit', '--no-fund', target], root);
+}
+if (realpathSync(installed) !== target) throw new Error('Local Baselode link verification failed');
 writeFileSync(config, JSON.stringify({ path: target }, null, 2) + '\n');
 console.log(`Using local Baselode: ${target}`);
 if (!args.includes('--prepare-only')) npm(['run', 'dev', '--', '--force'], root);
