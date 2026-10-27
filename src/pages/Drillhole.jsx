@@ -24,6 +24,7 @@ import { useProjectData } from '../context/ProjectDataContext.jsx';
 import { isLocalGridProject, localCollarXY } from '../lib/projectCoordinates.js';
 import { appendUniqueHoles, collectSceneHoles, loadObjFilesSequentially } from '../lib/sceneImports.js';
 import { reconcileSceneBounds } from '../lib/sceneBounds.js';
+import { prepareSceneGeometry } from '../lib/scenePreparation.js';
 import { makeLocalProjector } from '../lib/localProjection.js';
 import { buildCategoricalColorMap, colorForCategory } from '../lib/categoricalColors.js';
 
@@ -49,6 +50,7 @@ const FOV_STEPS = [1, 4, 8, 14, 21, 28];
 // would aim at empty space. Bumping the key discards those stale views.
 const CAMERA_CACHE_KEY = 'baselode-viewer-camera-v2';
 const SCENE_BG_KEY = 'baselode-viewer-3d-dark-bg-v1';
+const EMPTY_GEOMETRY = { surveyedByHole: new Map(), precomputedByHole: {}, errors: [] };
 
 function readInitialDarkBg() {
   try {
@@ -174,68 +176,6 @@ function Drillhole() {
     return scale?.bins?.length ? scale : null;
   }, [selectedAssayIntervalsByHole, colorByVariable, isCategorical]);
 
-  // Parse survey rows once per project and retain the resulting traces for
-  // individual and bulk additions. baselode's
-  // parseSurveyCSV is async, so we land it in state via useEffect.
-  const [surveyRows, setSurveyRows] = useState(null);
-  const [parsedSurveySource, setParsedSurveySource] = useState(null);
-  const [parsedPrecomputedSource, setParsedPrecomputedSource] = useState(null);
-  const geometryReady = (!rawCsv?.survey?.length || parsedSurveySource === rawCsv.survey)
-    && (!rawCsv?.precomputed?.length || parsedPrecomputedSource === rawCsv.precomputed);
-  useEffect(() => {
-    if (!rawCsv?.survey?.length) {
-      setSurveyRows(null);
-      return undefined;
-    }
-    let cancelled = false;
-    Promise.resolve()
-      .then(() => (Array.isArray(rawCsv.survey)
-        ? parseSurveyFromRows(rawCsv.survey)
-        : parseSurveyCSV(rawCsv.survey)))
-      .then((rows) => { if (!cancelled) setSurveyRows(rows?.length ? rows : null); })
-      .catch((e) => {
-        console.warn('Survey parse failed:', e);
-        if (!cancelled) setSurveyRows(null);
-      })
-      .finally(() => { if (!cancelled) setParsedSurveySource(rawCsv.survey); });
-    return () => { cancelled = true; };
-  }, [rawCsv?.survey]);
-
-  // Precomputed desurveyed holes indexed by id (when the project supplies
-  // a `precomputed_desurveyed` file). Adds prefer this over re-running the
-  // desurvey when an entry exists. parseDrillholesCSV is also async.
-  const [precomputedByHole, setPrecomputedByHole] = useState({});
-  useEffect(() => {
-    if (!rawCsv?.precomputed?.length) {
-      setPrecomputedByHole({});
-      return undefined;
-    }
-    let cancelled = false;
-    Promise.resolve()
-      .then(() => (Array.isArray(rawCsv.precomputed)
-        ? parseDrillholesFromRows(rawCsv.precomputed)
-        : parseDrillholesCSV(rawCsv.precomputed)))
-      .then((parsed) => {
-        if (cancelled) return;
-        const out = {};
-        (parsed?.holes || []).forEach((hole) => {
-          const pts = (hole.points || []).map((p) => ({
-            x: Number(p.x), y: Number(p.y), z: Number(p.z), md: Number(p.md),
-          })).filter((p) => Number.isFinite(p.x) && Number.isFinite(p.y) && Number.isFinite(p.z));
-          if (pts.length) {
-            out[hole.id] = { id: hole.id, project: hole.points?.[0]?.project_id || '', points: pts };
-          }
-        });
-        setPrecomputedByHole(out);
-      })
-      .catch((e) => {
-        console.info('Precomputed desurvey parse failed:', e?.message);
-        if (!cancelled) setPrecomputedByHole({});
-      })
-      .finally(() => { if (!cancelled) setParsedPrecomputedSource(rawCsv.precomputed); });
-    return () => { cancelled = true; };
-  }, [rawCsv?.precomputed]);
-
   // Fixed local-meters frame, centred on the collar centroid. We compute
   // this from ALL collars (not just the added ones) so the origin stays
   // stable as the user adds/removes holes — the scene doesn't shift under
@@ -263,16 +203,34 @@ function Drillhole() {
     localGrid ? localCollarXY(collar) : (utmToLocal?.projectLatLng(lat, lng) || project?.(lat, lng) || null)
   ), [utmToLocal, project, localGrid]);
 
-  // Retain the traces used for classification so a bulk add desurveys once.
-  const surveyedByHole = useMemo(() => {
-    if (!surveyRows?.length || !collars.length) return new Map();
-    try {
-      return new Map(desurveyHolesInSceneFrame(collars, surveyRows, projectLatLngToScene)
-        .map(hole => [hole.id, hole]));
-    } catch { return new Map(); }
-  }, [collars, surveyRows, projectLatLngToScene]);
+  // Keep preparation out of render so the loading indicator can paint.
+  const geometryInputs = useMemo(() => ({ collars, survey: rawCsv?.survey,
+    precomputed: rawCsv?.precomputed, projectLatLng: projectLatLngToScene,
+  }), [collars, rawCsv?.survey, rawCsv?.precomputed, projectLatLngToScene]);
+  const [geometryState, setGeometryState] = useState(null);
+  const currentGeometry = geometryState?.inputs === geometryInputs ? geometryState : null;
+  const geometryReady = currentGeometry?.loading === false;
+  const geometryLoading = status === 'ready' && !geometryReady;
+  const { surveyedByHole, precomputedByHole, errors: geometryErrors } = geometryReady ? currentGeometry : EMPTY_GEOMETRY;
+  useEffect(() => {
+    let cancelled = false;
+    prepareSceneGeometry(geometryInputs, {
+      parseSurvey: source => Array.isArray(source) ? parseSurveyFromRows(source) : parseSurveyCSV(source),
+      parsePrecomputed: source => Array.isArray(source) ? parseDrillholesFromRows(source) : parseDrillholesCSV(source),
+      desurvey: minimumCurvatureDesurvey,
+      isCurrent: () => !cancelled,
+      onProgress: message => setGeometryState({ inputs: geometryInputs, loading: true, message }),
+    }).then(result => {
+      if (!cancelled && !result.cancelled) setGeometryState({ inputs: geometryInputs, loading: false, ...result });
+    }).catch(error => {
+      if (!cancelled) setGeometryState({ inputs: geometryInputs, loading: false, ...EMPTY_GEOMETRY,
+        errors: [`3D data preparation failed: ${error.message || error}`] });
+    });
+    return () => { cancelled = true; };
+  }, [geometryInputs]);
   const collarsById = useMemo(() => new Map(collars.map(collar => [collar.holeId, collar])), [collars]);
   const holeBuckets = useMemo(() => {
+    if (!geometryReady) return { full: [], collar: [], noSurvey: [] };
     const full = [];
     const collar = [];
     const noSurvey = [];
@@ -290,7 +248,7 @@ function Drillhole() {
     }
     full.sort(); collar.sort(); noSurvey.sort();
     return { full, collar, noSurvey };
-  }, [collars, surveyedByHole, precomputedByHole]);
+  }, [collars, surveyedByHole, precomputedByHole, geometryReady]);
 
   // Reset scene-holes whenever the project changes underneath us. Without
   // this, leftover holes from a previous project would refuse to clear.
@@ -540,9 +498,9 @@ function Drillhole() {
           <select
             value={selectedHoleId}
             onChange={(e) => setSelectedHoleId(e.target.value)}
-            disabled={!holeBuckets.full.length}
+            disabled={!geometryReady || !holeBuckets.full.length}
           >
-            <option value="">{holeBuckets.full.length ? 'Pick a hole…' : 'No holes with a 3D string'}</option>
+            <option value="">{!geometryReady ? 'Preparing drillhole traces…' : holeBuckets.full.length ? 'Pick a hole…' : 'No holes with a 3D string'}</option>
             {holeBuckets.full.map((id) => (
               <option key={id} value={id}>{id}</option>
             ))}
@@ -621,6 +579,7 @@ function Drillhole() {
         )}
       </section>
 
+      {geometryErrors.length > 0 && <div className="error-banner small" role="alert">{geometryErrors.join('; ')}</div>}
       {addError && <div className="error-banner small">{addError}</div>}
       {holes.length > 0 && (
         <section className="three-d-scene-section" aria-labelledby="three-d-scene-heading">
@@ -739,7 +698,7 @@ function Drillhole() {
   );
 
   return (
-    <div className="drillhole-container">
+    <div className="drillhole-container" aria-busy={geometryLoading}>
       <div className="drillhole-header">
         <h1>3D Scene</h1>
         <div className="drillhole-controls">
@@ -845,6 +804,10 @@ function Drillhole() {
       </div>
 
       <div className="canvas-container" ref={containerRef}>
+        {geometryLoading && <div className="scene-loading" role="status" aria-live="polite">
+          <span className="scene-loading-spinner" aria-hidden="true" />
+          <span>{currentGeometry?.message || 'Preparing 3D data…'}</span>
+        </div>}
         <div className="zoom-slider-overlay">
           <span className="zoom-label">+</span>
           <div className="zoom-slider-track">
@@ -871,7 +834,7 @@ function Drillhole() {
             <p>Open a project folder to view drillholes.</p>
           </div>
         )}
-        {status === 'ready' && holes.length === 0 && objMeshes.length === 0 && (
+        {status === 'ready' && !geometryLoading && holes.length === 0 && objMeshes.length === 0 && (
           <div className="placeholder-message">
             <p>Add a hole from the sidebar to begin.</p>
           </div>
@@ -974,58 +937,6 @@ function buildEqualRangeColorScale(values = [], colors = ASSAY_COLOR_PALETTE_10)
 
 function normalizeHoleKey(value) {
   return `${value ?? ''}`.trim().toLowerCase();
-}
-
-// Desurvey collars into the scene's local-metres frame.
-//
-// baselode's canonical desurvey takes collars in a projected frame
-// (`easting` / `northing` / `elevation`, +Z up) and returns a flat array of
-// station points in that same frame, so we seed it with the local frame the
-// scene already draws in and the traces come back ready to render. Seeding
-// the collar with its real RL puts survey-derived strings on the same
-// vertical datum as collar-only holes; an unknown RL falls back to a 0 m
-// datum, which is what the collar-relative traces used to give us.
-//
-// `step: null` keeps one vertex per survey station rather than resampling
-// the trace every metre. The flat rows are regrouped per hole because that
-// is the shape the scene (and the hole classification below) consumes.
-function desurveyHolesInSceneFrame(collars, surveyRows, projectLatLng) {
-  if (!surveyRows?.length || !projectLatLng) return [];
-  const collarByKey = new Map();
-  const canonicalCollars = [];
-  for (const collar of collars || []) {
-    const holeId = collar?.holeId;
-    if (!holeId) continue;
-    const key = normalizeHoleKey(holeId);
-    if (collarByKey.has(key)) continue;
-    const xy = projectLatLng(collar.lat, collar.lng, collar);
-    if (!Number.isFinite(xy?.x) || !Number.isFinite(xy?.y)) continue;
-    const elevation = Number(collar.elevation);
-    collarByKey.set(key, collar);
-    canonicalCollars.push({
-      hole_id: holeId,
-      easting: xy.x,
-      northing: xy.y,
-      elevation: Number.isFinite(elevation) ? elevation : 0,
-    });
-  }
-  if (!canonicalCollars.length) return [];
-
-  const points = minimumCurvatureDesurvey(canonicalCollars, surveyRows, { step: null }) || [];
-  const byKey = new Map();
-  for (const point of points) {
-    const key = normalizeHoleKey(point?.hole_id);
-    const collar = collarByKey.get(key);
-    if (!collar) continue;
-    if (!Number.isFinite(point.x) || !Number.isFinite(point.y) || !Number.isFinite(point.z)) continue;
-    let hole = byKey.get(key);
-    if (!hole) {
-      hole = { id: collar.holeId, project: collar.project || '', points: [] };
-      byKey.set(key, hole);
-    }
-    hole.points.push({ x: point.x, y: point.y, z: point.z, md: point.md });
-  }
-  return [...byKey.values()];
 }
 
 function finiteValueRange(values) {

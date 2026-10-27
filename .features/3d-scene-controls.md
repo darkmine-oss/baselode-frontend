@@ -2,6 +2,7 @@
 
 Status: implemented on feature branches for local review; no merge or release.
 
+- Show a spinner and progress text while preparing survey and precomputed traces. Work starts after a paint opportunity; survey calculations run in batches of 200 holes with a browser yield between batches. Hole controls remain disabled until preparation finishes. Leaving the page or changing projects cancels pending work; errors appear in the sidebar.
 - Add all holes below the full-trace picker and below the point-only picker. Each button adds its own group, preserves existing holes and avoids duplicates. The sidebar list uses pages of 100 entries; every added hole remains in the scene.
 - Select multiple OBJ files in one file dialog. Files load in sequence with progress; invalid files are reported by name without stopping subsequent imports. Project changes cancel pending imports.
 - Select an imported mesh by clicking its surface or its sidebar name, then edit its colour. The whole imported group is highlighted. Colour changes remain in memory for the current scene and leave source files and geometry unchanged.
@@ -14,11 +15,11 @@ Status: implemented on feature branches for local review; no merge or release.
 
 Use `npm run baselode:local -- /path/to/baselode/javascript/packages/baselode` and `npm run dev`. The helper verifies that `node_modules/baselode` resolves to the chosen checkout. `npm run dev:local` reuses the saved local path and rebuilds the library.
 
-Synthetic checks cover bulk additions, duplicate prevention, point-only holes, invalid files and cancelled imports. Shared-library tests cover nearest-hit selection, hidden and transparent meshes, material isolation, wireframe edges and disposal, click callbacks, transformed bounds and extent-box updates. Viewer tests cover combined hole/mesh bounds and reuse of hole bounds during style edits. The full Baselode suite (822 tests), viewer suite (16 tests), package/type checks and combined production build passed using Node 24.22.1. Interactive review remains manual.
+Synthetic checks cover bulk additions, duplicate prevention, point-only holes, invalid files and cancelled imports. Shared-library tests cover nearest-hit selection, hidden and transparent meshes, material isolation, wireframe edges and disposal, click callbacks, transformed bounds and extent-box updates. Viewer tests cover combined hole/mesh bounds and reuse of hole bounds during style edits. The full Baselode suite (822 tests), viewer suite (22 tests), package/type checks and combined production build passed using Node 24.22.1. Loading tests cover progress before computation, all-hole coverage, cancellation, completion without surveys and parse/calculation failures. A comparison using the actual Baselode calculation produced identical coordinates for 405 synthetic holes and 1,620 stations with unchanged inputs. Interactive review remains manual.
 
 Manual checks:
 
-1. Add all full traces and all point-only holes; confirm the counts and duplicate prevention.
+1. Open 3D with a survey project. Confirm the spinner and progress appear, hole controls become available on completion, and navigating away during preparation leaves no pending updates. Add all full traces and all point-only holes; confirm the counts and duplicate prevention.
 2. Select several OBJ files, including an invalid file; confirm later valid files still load.
 3. Click two different mesh surfaces and recolour each independently. Select the same meshes from the sidebar.
 4. Add or remove holes and change their colour variable; confirm imported meshes remain selectable and retain their colours.
