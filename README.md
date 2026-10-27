@@ -26,8 +26,9 @@ release builds reputation. Older releases may be unsigned.
 1. Double-click the downloaded installer.
 2. If Windows displays **"Windows protected your PC"**, click **More info**.
 3. Check that the publisher is **Darkmine Pty Ltd** before continuing. If it
-   shows **Unknown publisher**, download the current release again.
-4. Click **Run anyway**.
+   shows **Unknown publisher** or a different publisher, stop and obtain a
+   signed release from the official GitHub releases page.
+4. Only if the publisher matches, click **Run anyway**.
 5. If Windows asks whether the app may make changes to the device, click
    **Yes**.
 6. Continue through the installer normally.
@@ -194,7 +195,7 @@ these GitHub Actions repository variables before running a release:
 
 | Variable | Value |
 | --- | --- |
-| `AZURE_SIGNING_ENDPOINT` | The regional endpoint URL for the signing account, such as `https://eus.codesigning.azure.net`. |
+| `AZURE_SIGNING_ENDPOINT` | Copy the Account URI from the signing account's Azure Overview page. The Darkmine account is in Japan East: `https://jpe.codesigning.azure.net/`. |
 | `AZURE_SIGNING_ACCOUNT` | The Artifact Signing account name. |
 | `AZURE_SIGNING_PROFILE` | The certificate profile name. Use a public trust profile for public downloads. |
 

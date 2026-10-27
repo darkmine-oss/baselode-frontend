@@ -180,7 +180,7 @@ jobs:
             }
           }
 
-          cargo install --locked artifact-signing-cli
+          cargo install --locked artifact-signing-cli --version 0.12.0
           if ($LASTEXITCODE -ne 0) { throw 'Could not install artifact-signing-cli.' }
 
           # Keep account details outside the repository. Tauri invokes this for
