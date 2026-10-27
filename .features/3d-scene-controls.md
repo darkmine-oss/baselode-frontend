@@ -4,6 +4,7 @@ Status: implemented on feature branches for local review; no merge or release.
 
 - Show a spinner and progress text while preparing survey and precomputed traces. Work starts after a paint opportunity; survey calculations run in batches of 200 holes with a browser yield between batches. Hole controls remain disabled until preparation finishes. Leaving the page or changing projects cancels pending work; errors appear in the sidebar.
 - Add all holes below the full-trace picker and below the point-only picker. Each button adds its own group, preserves existing holes and avoids duplicates. The sidebar list uses pages of 100 entries; every added hole remains in the scene.
+- The sidebar stays within the window height and scrolls vertically when controls exceed the available space. Sections retain their height and the scene remains independently positioned.
 - Select multiple OBJ files in one file dialog. Files load in sequence with progress; invalid files are reported by name without stopping subsequent imports. Project changes cancel pending imports.
 - Select an imported mesh by clicking its surface or its sidebar name, then edit its colour. The whole imported group is highlighted. Colour changes remain in memory for the current scene and leave source files and geometry unchanged.
 - Hide individual meshes or use Show all meshes / Hide all meshes without unloading. Hidden meshes remain selectable from the sidebar for editing.
@@ -22,7 +23,7 @@ Synthetic checks cover bulk additions, duplicate prevention, point-only holes, i
 Manual checks:
 
 1. Open 3D with a survey project. Confirm the spinner and progress appear, hole controls become available on completion, and navigating away during preparation leaves no pending updates. Add all full traces and all point-only holes; confirm the counts and duplicate prevention.
-2. Select several OBJ files, including an invalid file; confirm later valid files still load.
+2. Select several OBJ files, including an invalid file; confirm later valid files still load. Load enough meshes to overflow the sidebar, resize the window and confirm all controls and footer links remain reachable by scrolling.
 3. Click two different mesh surfaces and recolour each independently. Select the same meshes from the sidebar.
 4. Add or remove holes and change their colour variable; confirm imported meshes remain selectable and retain their colours.
 5. Hide/show individual meshes and all meshes, then set opacity to 0%, 50% and 100%. Confirm hidden and fully transparent meshes do not intercept clicks; use the sidebar to restore them.

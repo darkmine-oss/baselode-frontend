@@ -4,12 +4,23 @@
  */
 .sidebar {
   width: 240px;
-  height: 100vh;
+  flex: 0 0 240px;
+  height: 100%;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior-y: contain;
+  scrollbar-gutter: stable;
   background: var(--color-surface-container);
   display: flex;
   flex-direction: column;
   padding: 16px 0 8px;
   z-index: 10;
+}
+
+/* Preserve section heights so excess content scrolls instead of compressing. */
+.sidebar > * {
+  flex-shrink: 0;
 }
 
 .sidebar-header {
