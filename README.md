@@ -19,14 +19,14 @@ Gatekeeper should allow it to launch without any security override.
 > Only continue if you downloaded the installer from an official Darkmine
 > [GitHub release](https://github.com/darkmine-oss/baselode-frontend/releases).
 
-Windows Defender SmartScreen warns before running installers it doesn't
-recognise. Because the build isn't signed with a widely-trusted certificate,
-you'll see this warning even for a legitimate download — it's expected.
+Windows releases built with the signing workflow use Azure Artifact Signing
+(formerly Trusted Signing). Windows SmartScreen can still warn while a new
+release builds reputation. Older releases may be unsigned.
 
 1. Double-click the downloaded installer.
 2. If Windows displays **"Windows protected your PC"**, click **More info**.
-3. Check that the app name and publisher details are what you expect. An
-   unsigned build may show **Unknown publisher**.
+3. Check that the publisher is **Darkmine Pty Ltd** before continuing. If it
+   shows **Unknown publisher**, download the current release again.
 4. Click **Run anyway**.
 5. If Windows asks whether the app may make changes to the device, click
    **Yes**.
@@ -185,6 +185,32 @@ macOS/Linux requires `cargo-xwin` and the Windows SDK; see the Tauri docs.
 ## Releasing
 
 Releases are tag-driven via `.github/workflows/release.yml`.
+
+### Windows release signing
+
+The Windows release job uses Tauri's signing hook to sign the app executable,
+MSI installer, and NSIS setup executable with Azure Artifact Signing. Configure
+these GitHub Actions repository variables before running a release:
+
+| Variable | Value |
+| --- | --- |
+| `AZURE_SIGNING_ENDPOINT` | The regional endpoint URL for the signing account, such as `https://eus.codesigning.azure.net`. |
+| `AZURE_SIGNING_ACCOUNT` | The Artifact Signing account name. |
+| `AZURE_SIGNING_PROFILE` | The certificate profile name. Use a public trust profile for public downloads. |
+
+Configure these GitHub Actions repository secrets for the Entra app registration
+used to sign:
+
+| Secret | Value |
+| --- | --- |
+| `AZURE_TENANT_ID` | Directory (tenant) ID. |
+| `AZURE_CLIENT_ID` | Application (client) ID. |
+| `AZURE_CLIENT_SECRET` | Client secret value. |
+
+Grant that app registration the **Artifact Signing Certificate Profile Signer**
+role on the certificate profile. The workflow checks all six settings before
+building Windows, and signing failure fails the build. Local Windows builds
+remain unsigned; release signing is enabled only by the generated CI config.
 
 ## License
 

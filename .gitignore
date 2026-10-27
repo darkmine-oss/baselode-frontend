@@ -19,6 +19,7 @@ package-lock.json
 src-tauri/target
 src-tauri/gen
 src-tauri/.fingerprint
+src-tauri/tauri.signing.conf.json
 
 # Logs
 npm-debug.log*

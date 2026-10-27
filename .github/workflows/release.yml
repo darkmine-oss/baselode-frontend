@@ -86,7 +86,7 @@ jobs:
             tauri-args: '--target universal-apple-darwin'
           - platform: windows-latest
             rust-targets: ''
-            tauri-args: ''
+            tauri-args: '--config src-tauri/tauri.signing.conf.json'
           - platform: ubuntu-22.04
             rust-targets: ''
             tauri-args: ''
@@ -158,6 +158,46 @@ jobs:
         # `npm install` (not `npm ci`): no lockfile is committed, so each
         # release resolves the latest published version of every dependency.
         run: npm install
+
+      - name: Prepare Windows signing
+        if: matrix.platform == 'windows-latest'
+        shell: pwsh
+        env:
+          SIGNING_ENDPOINT: ${{ vars.AZURE_SIGNING_ENDPOINT }}
+          SIGNING_ACCOUNT: ${{ vars.AZURE_SIGNING_ACCOUNT }}
+          SIGNING_PROFILE: ${{ vars.AZURE_SIGNING_PROFILE }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          foreach ($name in @('SIGNING_ENDPOINT', 'SIGNING_ACCOUNT', 'SIGNING_PROFILE',
+                              'AZURE_TENANT_ID', 'AZURE_CLIENT_ID', 'AZURE_CLIENT_SECRET')) {
+            if ([string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable($name))) {
+              throw "Set $name for Windows signing (see README.md)."
+            }
+          }
+
+          cargo install --locked artifact-signing-cli
+          if ($LASTEXITCODE -ne 0) { throw 'Could not install artifact-signing-cli.' }
+
+          # Keep account details outside the repository. Tauri invokes this for
+          # the app executable and again for each Windows installer.
+          $config = @{
+            bundle = @{
+              windows = @{
+                signCommand = @{
+                  cmd = 'artifact-signing-cli'
+                  args = @('-e', $env:SIGNING_ENDPOINT,
+                           '-a', $env:SIGNING_ACCOUNT,
+                           '-c', $env:SIGNING_PROFILE,
+                           '-d', 'Baselode Viewer', '%1')
+                }
+              }
+            }
+          }
+          $config | ConvertTo-Json -Depth 5 |
+            Set-Content -Path src-tauri/tauri.signing.conf.json -Encoding utf8
 
       - name: Import Apple Developer ID certificate
         if: matrix.platform == 'macos-latest'
@@ -233,6 +273,9 @@ jobs:
           APPLE_API_KEY: ${{ matrix.platform == 'macos-latest' && secrets.APPLE_API_KEY || '' }}
           APPLE_API_ISSUER: ${{ matrix.platform == 'macos-latest' && secrets.APPLE_API_ISSUER || '' }}
           APPLE_API_KEY_PATH: ${{ matrix.platform == 'macos-latest' && env.APPLE_API_KEY_PATH || '' }}
+          AZURE_TENANT_ID: ${{ matrix.platform == 'windows-latest' && secrets.AZURE_TENANT_ID || '' }}
+          AZURE_CLIENT_ID: ${{ matrix.platform == 'windows-latest' && secrets.AZURE_CLIENT_ID || '' }}
+          AZURE_CLIENT_SECRET: ${{ matrix.platform == 'windows-latest' && secrets.AZURE_CLIENT_SECRET || '' }}
         with:
           tagName: ${{ needs.resolve-version.outputs.tag }}
           releaseName: 'Baselode Viewer ${{ needs.resolve-version.outputs.tag }}'
