@@ -13,6 +13,10 @@
     "tauri:build": "tauri build",
     "test": "node --test tests/*.test.js"
   },
+  "engines": {
+    "node": ">=24",
+    "npm": ">=11"
+  },
   "//dependencies": "Tauri JS packages stay on the minor versions paired with the Rust crates in src-tauri/Cargo.lock; other dependencies intentionally float. package-lock.json is ignored, so npm install resolves current patch releases within those Tauri minor lines.",
   "dependencies": {
     "@tauri-apps/api": "~2.11.1",
