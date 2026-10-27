@@ -96,7 +96,7 @@ loader does no remapping. Synonyms (e.g. `lat` for `latitude`, `md` for
 
 | File          | Required columns | Common optional columns |
 |---------------|------------------|-------------------------|
-| `collars`     | `hole_id`, `latitude`, `longitude` | `elevation`, `datasource_hole_id`, `project_id`, `hole_type`, `max_depth` |
+| `collars`     | `hole_id` and either `latitude`/`longitude` or `easting`/`northing` | `elevation`, `datasource_hole_id`, `project_id`, `hole_type`, `max_depth` |
 | `survey`      | `hole_id`, `depth`, `azimuth`, `dip` | — |
 | `assays`      | `hole_id`, `from`, `to` | one or more analyte columns (e.g. `Au_PPM`, `Cu_PCT`) |
 | `geology`     | `hole_id`, `from`, `to` | `geology_code`, `geology_description`, plus any other intervaled attributes |
@@ -145,7 +145,7 @@ python3 scripts/convert_demo_data.py \
 
 ### Prerequisites
 
-- **Node 24+** and **npm**
+- **Node 24+** and **npm 11+** (release builds use Node 24.22.1 with npm 11.19.1)
 - **Rust** (for the Tauri backend) — install via [rustup](https://rustup.rs/).
   On Windows you also need the
   [Microsoft C++ Build Tools](https://v2.tauri.app/start/prerequisites/#windows).
@@ -215,3 +215,9 @@ remain unsigned; release signing is enabled only by the generated CI config.
 ## License
 
 GPL-3.0-or-later. See [`LICENSE`](LICENSE).
+
+## Local-grid projects
+
+Open the folder containing `collars.parquet` or `collars.csv` directly. Nested folders are separate projects and are not combined. Local-grid collars use `hole_id`, `easting`, `northing` and `elevation` in metres; no geographic CRS is inferred. Precomputed traces and OBJ meshes must use the same coordinate frame.
+
+The landing page uses Baselode's `createPlanView` primitive for local grids. Release the Baselode package containing this export before releasing the viewer. Older installed libraries show an explicit compatibility message; their local 3D coordinates remain supported. Folder reading shows loading progress and reports read errors in the sidebar. Parquet decoding uses JavaScript codecs under the existing desktop security policy.

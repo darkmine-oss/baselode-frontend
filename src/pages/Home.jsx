@@ -9,6 +9,8 @@ import { useNavigate } from 'react-router';
 // import keeps the existing `maplibregl.Map` / `Popup` call sites intact.
 import * as maplibregl from 'maplibre-gl';
 import Plotly from 'plotly.js-dist-min';
+import * as Baselode from 'baselode';
+import { isLocalGridProject } from '../lib/projectCoordinates.js';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import './Home.css';
 import { useZoomContext } from '../context/ZoomContext.jsx';
@@ -54,6 +56,11 @@ function Home() {
   const { theme } = useTheme();
   const { zoomLevel, setZoomLevel } = useZoomContext();
   const { collars, assayState, status } = useProjectData();
+
+  const localGrid = useMemo(() => isLocalGridProject(collars), [collars]);
+  const planRef = useRef(null);
+  const planContainerRef = useRef(null);
+  const [planError, setPlanError] = useState('');
 
   const [searchTerm, setSearchTerm] = useState('');
   const [searchError, setSearchError] = useState('');
@@ -108,7 +115,7 @@ function Home() {
 
   const geojsonData = useMemo(() => ({
     type: 'FeatureCollection',
-    features: renderedCollars.map((c, idx) => ({
+    features: renderedCollars.filter(c => Number.isFinite(c.lat) && Number.isFinite(c.lng)).map((c, idx) => ({
       type: 'Feature',
       geometry: { type: 'Point', coordinates: [c.lng, c.lat] },
       properties: {
@@ -211,9 +218,29 @@ function Home() {
     };
   }, [popupHoleId, popupHole, popupProperty, popupChartType, assayState, theme]);
 
-  // One-time map initialisation.
+  // Local grids have no geographic basemap or inferred latitude/longitude.
   useEffect(() => {
-    if (!mapContainerRef.current || mapRef.current) return;
+    if (!localGrid || !planContainerRef.current) return;
+    const createPlanView = Reflect.get(Baselode, 'createPlanView');
+    if (!createPlanView) {
+      setPlanError('Local plan view requires a Baselode build containing PlanView.');
+      return;
+    }
+    setPlanError('');
+    const plan = createPlanView(planContainerRef.current, {
+      xProp: 'easting', yProp: 'northing', idProp: 'holeId', groupProp: 'project', unit: 'm',
+      onPointClick: row => handleHoleClickRef.current?.(row?.holeId),
+    });
+    planRef.current = plan;
+    plan.setPoints(renderedCollars);
+    return () => { plan.destroy(); planRef.current = null; };
+  }, [localGrid]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { planRef.current?.setPoints(renderedCollars); }, [renderedCollars]);
+
+  // Geographic map initialisation.
+
+  useEffect(() => {
+    if (status !== 'ready' || localGrid || !mapContainerRef.current || mapRef.current) return;
     const initialBasemap = basemap;
     const map = new maplibregl.Map({
       container: mapContainerRef.current,
@@ -349,7 +376,7 @@ function Home() {
       mapRef.current = null;
       setMapLoaded(false);
     };
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [localGrid, status]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Push fresh geojson when collars change.
   useEffect(() => {
@@ -385,9 +412,9 @@ function Home() {
 
   const controls = (
     <div className="map-controls compact">
-      <div className="label-caps">Map controls</div>
+      <div className="label-caps">{localGrid ? 'Local grid (m)' : 'Map controls'}</div>
       <div className="basemap-toggle" role="group" aria-label="Basemap">
-        {Object.entries(BASEMAPS).map(([id, b]) => (
+        {!localGrid && Object.entries(BASEMAPS).map(([id, b]) => (
           <button
             key={id}
             type="button"
@@ -430,7 +457,8 @@ function Home() {
   return (
     <div className="home-container">
       <div className="map-wrapper">
-        <div ref={mapContainerRef} className="maplibre-container" />
+        {localGrid ? <div ref={planContainerRef} className="maplibre-container" /> : <div ref={mapContainerRef} className="maplibre-container" />}
+        {planError && <div role="alert">{planError}</div>}
       </div>
       {status !== 'ready' && (
         <div className="page-empty-state">

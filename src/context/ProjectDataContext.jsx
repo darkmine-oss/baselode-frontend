@@ -4,6 +4,8 @@
  */
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import Papa from 'papaparse';
+import { loadProject } from '../lib/projectLoad.js';
+import { collarsFromStandardRows } from '../lib/projectCoordinates.js';
 import {
   loadAssayFile,
   loadAssayFromRows,
@@ -83,20 +85,20 @@ export function ProjectDataProvider({ children }) {
     }
   }, []);
 
-  const openProject = useCallback(async () => {
-    if (!isTauri()) {
-      throw new Error('Use the in-browser folder input outside the desktop app.');
-    }
-    const folder = await pickProjectFolder();
-    if (!folder) return;
-    const read = await readProjectFolder(folder);
-    await ingest(read);
-  }, [ingest]);
+  const updateLoad = useCallback(patch => setState(previous => ({ ...previous, ...patch })), []);
+  const openProject = useCallback(() => loadProject({
+    read: async () => {
+      if (!isTauri()) throw new Error('Use the in-browser folder input outside the desktop app.');
+      const folder = await pickProjectFolder();
+      return folder ? readProjectFolder(folder) : null;
+    },
+    ingest, update: updateLoad, previousStatus: state.status,
+  }), [ingest, updateLoad, state.status]);
 
-  const openProjectFromFileList = useCallback(async (fileList) => {
-    const read = await readProjectFromFileList(fileList);
-    await ingest(read);
-  }, [ingest]);
+  const openProjectFromFileList = useCallback(fileList => loadProject({
+    read: () => readProjectFromFileList(fileList),
+    ingest, update: updateLoad, previousStatus: state.status,
+  }), [ingest, updateLoad, state.status]);
 
   // Try to restore the last project (desktop only — the folder path is
   // meaningless in a plain browser).
@@ -139,7 +141,7 @@ export function useProjectData() {
 
 async function parseProject(read) {
   const { files } = read;
-  const errors = {};
+  const errors = { ...read.errors };
   const hasSource = (source) => (
     Array.isArray(source) ? source.length > 0 : Boolean(source)
   );
@@ -279,37 +281,5 @@ function parseCollars(source) {
   const rows = Array.isArray(source)
     ? source
     : Papa.parse(source, { header: true, skipEmptyLines: true }).data;
-  return (rows || []).flatMap((row) => {
-    const s = standardizeColumns(row);
-    const lat = parseFloat(s.latitude);
-    const lng = parseFloat(s.longitude);
-    const easting = parseFloat(s.easting);
-    const northing = parseFloat(s.northing);
-    // Collar elevation (RL, metres). standardizeColumns folds elevation / rl /
-    // elev / z onto `elevation`. NaN when the source omits it — consumers guard
-    // with Number.isFinite. The 3D scene uses it to place holes that have no
-    // desurveyed trace (collar-only) at their true height; without it such a
-    // hole can't be positioned accurately in Z and is treated as "no survey".
-    const elevation = parseFloat(s.elevation);
-    const holeId = (s[HOLE_ID] || '').toString().trim();
-    if (!holeId || !Number.isFinite(lat) || !Number.isFinite(lng)) return [];
-    return [{
-      lat,
-      lng,
-      // Projected grid coordinates (UTM easting/northing) when the source
-      // carries them. Used to georeference loaded OBJ meshes — which are in
-      // the same projected CRS — into the scene's local-meters frame. NaN
-      // when absent; consumers guard with Number.isFinite.
-      easting,
-      northing,
-      elevation,
-      holeId,
-      // Leave empty when the source has no project_id / dataset
-      // column.  Consumers that want a display fallback use `|| '—'`
-      // or `|| 'N/A'` locally; the strip-log Project picker treats
-      // an empty value as "no project filter" and surfaces a "No
-      // projects" disabled option when every collar is empty.
-      project: (s.project_id || s.dataset || '').toString().trim(),
-    }];
-  });
+  return collarsFromStandardRows((rows || []).map(row => standardizeColumns(row)));
 }

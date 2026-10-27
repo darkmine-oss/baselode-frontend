@@ -98,7 +98,9 @@ jobs:
       - name: Set up Node
         uses: actions/setup-node@v5
         with:
-          node-version: '20'
+          # Match the supported local toolchain. Node 20/npm 10 crashes while
+          # resolving the current Vite optional peer dependencies.
+          node-version: '24.22.1'
           # No `cache: 'npm'` — the setup-node cache keys off a lockfile,
           # which this repo intentionally does not commit (deps float to
           # latest). With no lockfile the cache step errors out.

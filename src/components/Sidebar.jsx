@@ -78,7 +78,7 @@ function Sidebar() {
         >
           Data Format Instructions
         </Link>
-        <button type="button" className="primary-button sidebar-open-btn" onClick={onOpenClick}>
+        <button type="button" className="primary-button sidebar-open-btn" onClick={onOpenClick} disabled={project.status === 'loading'}>
           {project.status === 'loading' ? 'Loading…' : 'Open project folder'}
         </button>
         <input
@@ -95,6 +95,9 @@ function Sidebar() {
         {project.status === 'error' && project.errors?.load && (
           <div className="error-banner small">{project.errors.load}</div>
         )}
+        {project.status === 'ready' && Object.entries(project.errors || {}).map(([key, message]) => (
+          <div key={key} className="error-banner small" role="alert">{key}: {message}</div>
+        ))}
         {project.status === 'ready' && (
           <button type="button" className="ghost-button small sidebar-close-btn" onClick={project.closeProject}>
             Close
