@@ -11,6 +11,13 @@
   background: var(--color-background);
   color: var(--color-on-background);
   box-sizing: border-box;
+  position: relative;
+}
+
+/* Home.css makes empty states click-through (they overlay its map); this
+   page's empty state holds a button. */
+.geophysics-container .page-empty-state button {
+  pointer-events: auto;
 }
 
 .geophysics-header {

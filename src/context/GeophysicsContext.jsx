@@ -19,7 +19,7 @@ export const DEFAULT_GEOPHYSICS_VIEW = Object.freeze({
   hillshade: { enabled: true, azimuth: 315, altitude: 45, strength: 0.5, zFactor: 'auto' },
 });
 
-const IDLE = { id: '', status: 'idle', raster: null, error: '' };
+const IDLE = { id: '', source: null, status: 'idle', raster: null, error: '' };
 
 const GeophysicsContext = createContext(null);
 
@@ -39,16 +39,20 @@ export function GeophysicsProvider({ children }) {
       setLoaded(IDLE);
       return undefined;
     }
-    if (loaded.id === selected.id) return undefined;
+    // Reuse a finished load of this exact source (e.g. after navigating
+    // away). A reopened project brings new source objects, so its grids are
+    // read again, and a load cancelled part-way is always restarted.
+    if (loaded.source === selected && loaded.status !== 'loading') return undefined;
     let cancelled = false;
-    setLoaded({ id: selected.id, status: 'loading', raster: null, error: '' });
-    setBand(1);
+    const base = { id: selected.id, source: selected, raster: null, error: '' };
+    if (loaded.id !== selected.id) setBand(1);
+    setLoaded({ ...base, status: 'loading' });
     loadRasterSource(selected).then(
-      (raster) => { if (!cancelled) setLoaded({ id: selected.id, status: 'ready', raster, error: '' }); },
-      (error) => { if (!cancelled) setLoaded({ id: selected.id, status: 'error', raster: null, error: error?.message || String(error) }); },
+      (raster) => { if (!cancelled) setLoaded({ ...base, status: 'ready', raster }); },
+      (error) => { if (!cancelled) setLoaded({ ...base, status: 'error', error: error?.message || String(error) }); },
     );
     return () => { cancelled = true; };
-    // `loaded` is only consulted to skip a reload of the grid already shown.
+    // `loaded` is only consulted to skip reloading the grid already shown.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selected]);
 

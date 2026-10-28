@@ -2,7 +2,7 @@
  * Copyright (C) 2026 Darkmine Pty Ltd
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
-import { useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { GeophysicsRasterViewer } from 'baselode';
 import './Geophysics.css';
@@ -33,6 +33,10 @@ function Geophysics() {
   const project = useProjectData();
   const { sources, selected, select, addOpened, removeOpened, loaded, band, setBand, view, setView } = useGeophysics();
   const fileInputRef = useRef(null);
+  // The sidebar slot may not exist yet on the first render (direct
+  // navigation to this page), so look it up once mounted.
+  const [controlsTarget, setControlsTarget] = useState(null);
+  useEffect(() => setControlsTarget(document.getElementById('geophysics-controls-slot')), []);
 
   const onOpenClick = async () => {
     if (!isTauri()) {
@@ -88,19 +92,8 @@ function Geophysics() {
         </div>
       ))}
       <button type="button" className="ghost-button small" onClick={onOpenClick}>Open grid files…</button>
-      <input
-        ref={fileInputRef}
-        type="file"
-        multiple
-        hidden
-        // ERS grids need the header and its extensionless data file, so the
-        // browser picker can't filter by extension.
-        onChange={onFileInputChange}
-      />
     </div>
   );
-
-  const controlsTarget = typeof document !== 'undefined' ? document.getElementById('geophysics-controls-slot') : null;
 
   let body;
   if (!selected) {
@@ -165,6 +158,15 @@ function Geophysics() {
   return (
     <div className="geophysics-container">
       {body}
+      <input
+        ref={fileInputRef}
+        type="file"
+        multiple
+        hidden
+        // ERS grids need the header and its extensionless data file, so the
+        // browser picker can't filter by extension.
+        onChange={onFileInputChange}
+      />
       {controlsTarget && createPortal(sidebarControls, controlsTarget)}
     </div>
   );
