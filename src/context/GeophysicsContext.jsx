@@ -30,6 +30,9 @@ export function GeophysicsProvider({ children }) {
   const [band, setBand] = useState(1);
   const [view, setView] = useState(DEFAULT_GEOPHYSICS_VIEW);
   const [loaded, setLoaded] = useState(IDLE);
+  // Grids are read only while the Geophysics page is shown, so opening a
+  // project doesn't decode large grids for other pages.
+  const [active, setActive] = useState(false);
 
   const sources = useMemo(() => [...(rasterSources || []), ...opened], [rasterSources, opened]);
   const selected = sources.find((source) => source.id === selectedId) ?? sources[0] ?? null;
@@ -43,6 +46,7 @@ export function GeophysicsProvider({ children }) {
     // away). A reopened project brings new source objects, so its grids are
     // read again, and a load cancelled part-way is always restarted.
     if (loaded.source === selected && loaded.status !== 'loading') return undefined;
+    if (!active) return undefined;
     let cancelled = false;
     const base = { id: selected.id, source: selected, raster: null, error: '' };
     if (loaded.id !== selected.id) setBand(1);
@@ -54,13 +58,15 @@ export function GeophysicsProvider({ children }) {
     return () => { cancelled = true; };
     // `loaded` is only consulted to skip reloading the grid already shown.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selected]);
+  }, [selected, active]);
 
   const addOpened = useCallback((next) => {
     if (!next.length) return;
+    // Reopened files replace their earlier sources (and so are read again),
+    // e.g. an ERS header first opened without its data file.
     setOpened((current) => {
-      const known = new Set(current.map((source) => source.id));
-      return [...current, ...next.filter((source) => !known.has(source.id))];
+      const replaced = new Set(next.map((source) => source.id));
+      return [...current.filter((source) => !replaced.has(source.id)), ...next];
     });
     setSelectedId(next[0].id);
   }, []);
@@ -80,6 +86,7 @@ export function GeophysicsProvider({ children }) {
     setBand,
     view,
     setView,
+    setActive,
   }), [sources, selected, addOpened, removeOpened, loaded, band, view]);
 
   return <GeophysicsContext.Provider value={value}>{children}</GeophysicsContext.Provider>;

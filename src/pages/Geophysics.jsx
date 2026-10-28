@@ -31,12 +31,16 @@ function rasterDetails(raster) {
 
 function Geophysics() {
   const project = useProjectData();
-  const { sources, selected, select, addOpened, removeOpened, loaded, band, setBand, view, setView } = useGeophysics();
+  const { sources, selected, select, addOpened, removeOpened, loaded, band, setBand, view, setView, setActive } = useGeophysics();
   const fileInputRef = useRef(null);
   // The sidebar slot may not exist yet on the first render (direct
   // navigation to this page), so look it up once mounted.
   const [controlsTarget, setControlsTarget] = useState(null);
   useEffect(() => setControlsTarget(document.getElementById('geophysics-controls-slot')), []);
+  useEffect(() => {
+    setActive(true);
+    return () => setActive(false);
+  }, [setActive]);
 
   const onOpenClick = async () => {
     if (!isTauri()) {
