@@ -2,7 +2,7 @@
  * Copyright (C) 2026 Darkmine Pty Ltd
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
-import { useEffect, useRef, useState } from 'react';
+import { Component, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { GeophysicsRasterViewer } from 'baselode';
 import './Geophysics.css';
@@ -27,6 +27,32 @@ function rasterDetails(raster) {
   const decimation = (raster.metadata?.processing ?? []).find((step) => step.operation === 'decimate');
   if (decimation) details.push(`averaged ${decimation.factor}× for display`);
   return details;
+}
+
+/**
+ * Keeps a render failure (e.g. a band with no valid cells) on this page
+ * instead of blanking the app. Re-keyed per grid and band so choosing
+ * another one retries.
+ */
+class ViewerErrorBoundary extends Component {
+  constructor(props) {
+    super(props);
+    this.state = { error: null };
+  }
+
+  static getDerivedStateFromError(error) {
+    return { error };
+  }
+
+  render() {
+    if (!this.state.error) return this.props.children;
+    return (
+      <div className="page-empty-state">
+        <h2>Could not display this band</h2>
+        <p className="error-text" role="alert">{this.state.error.message || String(this.state.error)}</p>
+      </div>
+    );
+  }
 }
 
 function Geophysics() {
@@ -146,15 +172,17 @@ function Geophysics() {
             </label>
           )}
         </header>
-        <GeophysicsRasterViewer
-          className="geophysics-viewer"
-          raster={raster}
-          band={bandIndex}
-          units={units}
-          value={view}
-          onViewChange={setView}
-          height="auto"
-        />
+        <ViewerErrorBoundary key={`${selected.id}:${bandIndex}`}>
+          <GeophysicsRasterViewer
+            className="geophysics-viewer"
+            raster={raster}
+            band={bandIndex}
+            units={units}
+            value={view}
+            onViewChange={setView}
+            height="auto"
+          />
+        </ViewerErrorBoundary>
       </>
     );
   }
