@@ -1,0 +1,175 @@
+/*
+ * Copyright (C) 2026 Darkmine Pty Ltd
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ */
+.geophysics-container {
+  width: 100%;
+  height: 100vh;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--color-background);
+  color: var(--color-on-background);
+  box-sizing: border-box;
+}
+
+.geophysics-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px 20px 12px;
+  background: var(--color-surface-container-low);
+}
+
+.geophysics-header h1 {
+  font-family: var(--font-display);
+  font-size: 20px;
+  font-weight: 500;
+  color: var(--color-on-surface);
+  margin: 0 0 4px;
+  overflow-wrap: anywhere;
+}
+
+.geophysics-details {
+  margin: 0;
+  font-size: 12px;
+  color: var(--color-on-surface-variant);
+  font-variant-numeric: tabular-nums;
+}
+
+.geophysics-band {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--color-on-surface-variant);
+}
+
+.geophysics-band select,
+.geophysics-viewer .baselode-geophysics-raster__controls select,
+.geophysics-viewer .baselode-geophysics-raster__controls input[type="number"] {
+  border: var(--border-hairline) solid var(--color-outline-variant);
+  background: var(--color-surface-container);
+  color: var(--color-on-surface);
+  padding: 4px 6px;
+  font-size: 12px;
+  font-family: inherit;
+}
+
+/* The baselode viewer ships a fixed dark palette; map it onto the app
+   theme and let the canvas take the space left by the legend and controls. */
+.geophysics-viewer.baselode-geophysics-raster {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--color-background);
+  color: var(--color-on-surface);
+  font-family: inherit;
+}
+
+.geophysics-viewer .baselode-geophysics-raster__canvas {
+  flex: 1 1 0;
+  min-height: 0;
+  background: var(--color-surface-container-lowest);
+}
+
+.geophysics-viewer .baselode-geophysics-raster__ticks,
+.geophysics-viewer .baselode-geophysics-raster__controls label {
+  color: var(--color-on-surface);
+}
+
+.geophysics-viewer .baselode-geophysics-raster__colorbar figcaption,
+.geophysics-viewer .baselode-geophysics-raster__summary {
+  color: var(--color-on-surface-variant);
+}
+
+.geophysics-viewer .baselode-geophysics-raster__legend {
+  background: var(--color-surface-container-low);
+}
+
+.geophysics-viewer .baselode-geophysics-raster__controls {
+  background: var(--color-surface-container);
+  font-size: 12px;
+}
+
+.geophysics-viewer .baselode-geophysics-raster__controls legend {
+  /* Visually hidden: the sidebar and header already name the panel. */
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+}
+
+.geophysics-viewer input[type="range"],
+.geophysics-viewer input[type="checkbox"] {
+  accent-color: hsl(var(--accent));
+}
+
+.geophysics-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.geophysics-source-group-title {
+  font-size: 11px;
+  color: var(--color-on-surface-variant);
+  margin-bottom: 2px;
+}
+
+.geophysics-source-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.geophysics-source-list li {
+  display: flex;
+  align-items: center;
+  border-left: 2px solid transparent;
+}
+
+.geophysics-source-list li.active {
+  border-left-color: hsl(var(--accent));
+  background: var(--color-surface-container-high);
+}
+
+.geophysics-source {
+  flex: 1;
+  min-width: 0;
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: var(--color-on-surface);
+  padding: 5px 8px;
+  font: inherit;
+  font-size: 12px;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+
+.geophysics-source:hover {
+  background: var(--color-surface-container-high);
+}
+
+.geophysics-source-remove {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: var(--color-on-surface-variant);
+  padding: 2px 8px;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.geophysics-source-remove:hover {
+  color: var(--color-on-surface);
+}

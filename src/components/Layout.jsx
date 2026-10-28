@@ -8,6 +8,7 @@ import { ProjectDataProvider } from '../context/ProjectDataContext.jsx';
 import { ThemeProvider } from '../context/ThemeContext.jsx';
 import { AnalyticsSelectionsProvider } from '../context/AnalyticsSelectionsContext.jsx';
 import { StripLogSelectionsProvider } from '../context/StripLogSelectionsContext.jsx';
+import { GeophysicsProvider } from '../context/GeophysicsContext.jsx';
 
 function Layout({ children }) {
   return (
@@ -16,10 +17,12 @@ function Layout({ children }) {
         <ProjectDataProvider>
           <AnalyticsSelectionsProvider>
             <StripLogSelectionsProvider>
-              <div className="app-container">
-                <Sidebar />
-                <main className="main-content">{children}</main>
-              </div>
+              <GeophysicsProvider>
+                <div className="app-container">
+                  <Sidebar />
+                  <main className="main-content">{children}</main>
+                </div>
+              </GeophysicsProvider>
             </StripLogSelectionsProvider>
           </AnalyticsSelectionsProvider>
         </ProjectDataProvider>

@@ -39,6 +39,7 @@ const initial = {
   categoricalColorMap: {},
   rawCsv: { precomputed: null, survey: null, colors: null },
   formats: {},
+  rasterSources: [],
   openProject: async () => {},
   openProjectFromFileList: async () => {},
   closeProject: () => {},
@@ -50,7 +51,7 @@ export function ProjectDataProvider({ children }) {
   const [state, setState] = useState(initial);
 
   const closeProject = useCallback(() => {
-    setState((s) => ({ ...s, status: 'idle', folderPath: '', errors: {}, collars: [], assayState: null, combinedHoles: [], structureRows: null, geologyHoles: [], surfaceSamples: [], categoricalColorMap: {}, rawCsv: { precomputed: null, survey: null, colors: null }, formats: {} }));
+    setState((s) => ({ ...s, status: 'idle', folderPath: '', errors: {}, collars: [], assayState: null, combinedHoles: [], structureRows: null, geologyHoles: [], surfaceSamples: [], categoricalColorMap: {}, rawCsv: { precomputed: null, survey: null, colors: null }, formats: {}, rasterSources: [] }));
     try {
       localStorage.removeItem(LAST_PROJECT_KEY);
     } catch (e) {
@@ -76,6 +77,7 @@ export function ProjectDataProvider({ children }) {
         categoricalColorMap: parsed.categoricalColorMap,
         rawCsv: { precomputed: read.files.precomputed_desurveyed || null, survey: read.files.survey || null, colors: read.files.colors || null },
         formats: read.formats || {},
+        rasterSources: read.rasters || [],
       }));
       if (read.folderPath) {
         try { localStorage.setItem(LAST_PROJECT_KEY, read.folderPath); } catch (e) { /* ignore */ }

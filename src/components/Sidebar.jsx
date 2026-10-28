@@ -15,6 +15,7 @@ const MENU = [
   { path: '/strip-log', label: 'Strip Logs' },
   { path: '/drillhole', label: '3D Scene' },
   { path: '/analytics', label: 'Analytics' },
+  { path: '/geophysics', label: 'Geophysics' },
 ];
 
 function Sidebar() {
@@ -109,6 +110,7 @@ function Sidebar() {
       <div id="strip-log-controls-slot" className="sidebar-slot" />
       <div id="three-d-controls-slot" className="sidebar-slot" />
       <div id="analytics-controls-slot" className="sidebar-slot" />
+      <div id="geophysics-controls-slot" className="sidebar-slot" />
 
       <div className="sidebar-footer">
         <div id="data-source-slot" className="data-source-info" />

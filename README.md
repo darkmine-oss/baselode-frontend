@@ -49,6 +49,11 @@ Control enabled or may be managed by an employer.
   when the data carries no project column.  Per-panel picks persist
   across page navigation, so opening the 3D Scene and coming back
   keeps the grid configured.
+- **Geophysics** — ER Mapper (`.ers`) and GeoTIFF grids from the project
+  folder (top level or a `geophysics/` subfolder) or opened directly, with
+  colour scales, relative / absolute / histogram-equalised stretches,
+  hillshading and a cursor read-out. Large grids are block-averaged for
+  display.
 - **Analytics** — scatter / histogram / box / violin / ternary plots over
   the loaded drillhole assays or surface samples, with categorical
   colouring (lithology, sample type, etc.).  Each plot has its own
@@ -74,7 +79,8 @@ my-project/
 ├── structure.{parquet,csv}                (optional — structural discs in 3D)
 ├── surface_samples.{parquet,csv}          (optional — out-of-hole sample points
 │                                              consumed by the Analytics view)
-└── precomputed_desurveyed.{parquet,csv}   (optional — bypasses live desurvey)
+├── precomputed_desurveyed.{parquet,csv}   (optional — bypasses live desurvey)
+└── geophysics/                            (optional — .ers and .tif grids)
 ```
 
 Only `collars` is required. If both formats are present for a file the
