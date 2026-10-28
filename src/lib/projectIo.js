@@ -10,6 +10,7 @@
  *   - Tauri desktop  → @tauri-apps/plugin-dialog + @tauri-apps/plugin-fs
  *   - Plain browser  → <input type=file webkitdirectory>  (dev fallback)
  */
+import { listProjectRasters, rasterSourcesFromFiles } from './geophysicsIo.js';
 
 /**
  * Canonical project files. Each is looked up as `<key>.parquet` first, then
@@ -71,7 +72,7 @@ export async function readProjectFolder(folderPath) {
   }
   const fs = await import('@tauri-apps/plugin-fs');
 
-  const out = { folderPath, files: {}, formats: {}, errors: {} };
+  const out = { folderPath, files: {}, formats: {}, errors: {}, rasters: [] };
   const failures = {};
   let scopeRejected = false;
 
@@ -123,6 +124,8 @@ export async function readProjectFolder(folderPath) {
       throw new Error(`Missing required file "${required}.csv" or "${required}.parquet" in folder.`);
     }
   }
+  // Geophysics grids are listed now and read when the Geophysics page shows them.
+  out.rasters = await listProjectRasters(folderPath);
   return out;
 }
 
@@ -137,7 +140,7 @@ function isScopeError(err) {
  * are present for the same canonical name.
  */
 export async function readProjectFromFileList(fileList) {
-  const out = { folderPath: '', files: {}, formats: {}, errors: {} };
+  const out = { folderPath: '', files: {}, formats: {}, errors: {}, rasters: rasterSourcesFromFiles(fileList, 'project') };
   const failures = {};
   for (const key of PROJECT_FILE_KEYS) {
     out.files[key] = null;

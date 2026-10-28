@@ -25,7 +25,11 @@ function DataInstructions() {
 ├── structure.{parquet,csv}                (structural discs in 3D)
 ├── surface_samples.{parquet,csv}          (out-of-hole sample points
 │                                              consumed by the Analytics view)
-└── precomputed_desurveyed.{parquet,csv}   (optional — skip live desurvey)`}</pre>
+├── precomputed_desurveyed.{parquet,csv}   (optional — skip live desurvey)
+└── geophysics/                            (optional — grids for the Geophysics view;
+    ├── regional_tmi.ers                       grids at the top level are found too)
+    ├── regional_tmi
+    └── gravity.tif`}</pre>
         <p>
           Only <code>collars</code> is required. Missing files are skipped silently; the
           relevant viewer falls back to a placeholder.
@@ -94,6 +98,21 @@ function DataInstructions() {
           Viewer. Numeric columns appear as depth tracks, categorical columns as
           selectable interval strips, and description/comment columns as interval
           annotations. Adding a geology attribute does not require a frontend update.
+        </p>
+
+        <h2>Geophysics grids</h2>
+        <p>
+          The Geophysics view shows ER Mapper (<code>.ers</code>) and GeoTIFF (<code>.tif</code>,
+          <code>.tiff</code>) grids found at the top of the project folder or in its
+          <code> geophysics/</code> subfolder. Grids can also be opened on their own from the
+          Geophysics page, without a project. An ERS grid is two files: the <code>.ers</code> header
+          and its data file, the same name without the extension (or the header&apos;s
+          <code> DataFile</code>). Keep them together and, in a browser, select both.
+        </p>
+        <p>
+          Band names and units come from the ERS <code>BandId</code> entries, and GDA94, GDA2020,
+          AGD66/84 and WGS84 datums map to EPSG codes. Rotated ERS grids are not supported. Grids larger
+          than a million cells are block-averaged for display; the header shows the factor.
         </p>
 
         <h2>Local coordinates</h2>

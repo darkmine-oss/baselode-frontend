@@ -9,6 +9,7 @@ import Drillhole from './pages/Drillhole';
 import Drillhole2D from './pages/Drillhole2D';
 import DataInstructions from './pages/DataInstructions';
 import AnalyticsPlots from './pages/AnalyticsPlots';
+import Geophysics from './pages/Geophysics';
 import './App.css';
 
 function App() {
@@ -19,6 +20,7 @@ function App() {
         <Route path="/drillhole" element={<Drillhole />} />
         <Route path="/strip-log" element={<Drillhole2D />} />
         <Route path="/analytics" element={<AnalyticsPlots />} />
+        <Route path="/geophysics" element={<Geophysics />} />
         <Route path="/data-instructions" element={<DataInstructions />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
