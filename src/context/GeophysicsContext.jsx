@@ -31,18 +31,31 @@ const KEPT_PARAMS = ['inclination', 'declination'];
 // Wait for typing to pause before re-running a Fourier transform.
 const PROCESS_DELAY_MS = 300;
 
-/** One band of a raster as its own single-band raster. */
-async function bandRaster(raster, band) {
-  if (raster.bandCount === 1) return raster;
-  const { createGeophysicsRaster } = await import('baselode');
-  return createGeophysicsRaster({
+/** One band of a raster as a single-band raster payload. */
+function bandPayload(raster, band) {
+  return {
     data: [raster.data[band - 1]],
     transform: raster.transform,
     crs: raster.crs,
     nodata: raster.nodata,
     bandNames: [raster.bandNames[band - 1]],
     metadata: { ...raster.metadata, units: [raster.metadata?.units?.[band - 1] ?? null] },
+  };
+}
+
+/**
+ * Process a payload in a Web Worker. Returns the result promise and a
+ * `cancel` that terminates the worker, so a superseded request stops
+ * instead of finishing in the background.
+ */
+function processInWorker(payload, request) {
+  const worker = new Worker(new URL('../workers/geophysicsWorker.js', import.meta.url), { type: 'module' });
+  const result = new Promise((resolve, reject) => {
+    worker.onmessage = ({ data }) => (data.error ? reject(new Error(data.error)) : resolve(data.raster));
+    worker.onerror = (event) => reject(new Error(event.message || 'Geophysics processing failed.'));
+    worker.postMessage({ raster: payload, operation: request.operation, options: request.options });
   });
+  return { result: result.finally(() => worker.terminate()), cancel: () => worker.terminate() };
 }
 
 const GeophysicsContext = createContext(null);
@@ -98,9 +111,8 @@ export function GeophysicsProvider({ children }) {
     [shownRaster, processing.params],
   );
 
-  // Run the chosen operation on the shown band. Processing yields to the
-  // browser first so the page can show progress, and a newer request
-  // supersedes an older one.
+  // Run the chosen operation on the shown band in a Web Worker, so large
+  // grids don't freeze the page. A newer request terminates an older one.
   useEffect(() => {
     if (!shownRaster || processing.id === 'none') {
       setProcessed(UNPROCESSED);
@@ -116,19 +128,19 @@ export function GeophysicsProvider({ children }) {
       return undefined;
     }
     let cancelled = false;
+    let job = null;
     setProcessed((current) => ({ ...current, status: 'processing', error: '' }));
-    const timer = setTimeout(async () => {
-      try {
-        const { processGeophysicsRaster } = await import('baselode');
-        const result = processGeophysicsRaster(await bandRaster(shownRaster, shownBand), request.operation, request.options);
-        if (!cancelled) setProcessed({ status: 'ready', raster: result, error: '', key });
-      } catch (error) {
-        if (!cancelled) setProcessed({ ...UNPROCESSED, status: 'error', error: error?.message || String(error), key });
-      }
+    const timer = setTimeout(() => {
+      job = processInWorker(bandPayload(shownRaster, shownBand), request);
+      job.result.then(
+        (raster) => { if (!cancelled) setProcessed({ status: 'ready', raster, error: '', key }); },
+        (error) => { if (!cancelled) setProcessed({ ...UNPROCESSED, status: 'error', error: error.message, key }); },
+      );
     }, PROCESS_DELAY_MS);
     return () => {
       cancelled = true;
       clearTimeout(timer);
+      job?.cancel();
     };
     // `selected` changes only with `shownRaster`.
     // eslint-disable-next-line react-hooks/exhaustive-deps
