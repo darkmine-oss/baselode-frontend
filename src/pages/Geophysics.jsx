@@ -110,8 +110,11 @@ function Geophysics() {
   const units = raster ? processedUnits(processingId, raster.metadata?.units?.[bandIndex - 1] ?? undefined, raster) : undefined;
   const cropped = crop.enabled && !cropError;
   const decimation = (raster?.metadata?.processing ?? []).find((step) => step.operation === 'decimate');
+  // While new settings run, the previous result stays on screen; it must
+  // not be saved under the new settings' name.
+  const saveable = Boolean(shownRaster) && (!processing || processed.status === 'ready');
   const onSave = async () => {
-    if (!shownRaster) return;
+    if (!saveable) return;
     setSaveState({ status: 'saving', message: '' });
     try {
       const name = saveFileName(selected.label, [cropped && 'cropped', processing && operation.id], saveFormat);
@@ -231,7 +234,7 @@ function Geophysics() {
         type="button"
         className="ghost-button small"
         onClick={onSave}
-        disabled={!shownRaster || saveState.status === 'saving'}
+        disabled={!saveable || saveState.status === 'saving'}
         title="Save the grid as shown: cropped and processed"
       >
         {saveState.status === 'saving' ? 'Saving…' : 'Save grid…'}
