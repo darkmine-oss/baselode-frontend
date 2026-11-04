@@ -30,3 +30,6 @@ pnpm-debug.log*
 # Local agent workspace and locally-converted data dumps
 .claude/
 test-data/gswa-*/
+
+# Local-only datasets
+test-data/local/

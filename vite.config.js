@@ -13,7 +13,9 @@ const pkg = JSON.parse(readFileSync(path.resolve(__dirname, 'package.json'), 'ut
 // Read the *installed* baselode version so the UI reflects what's actually
 // bundled, not just the semver range in package.json.
 const baselodePkg = JSON.parse(
-  readFileSync(path.resolve(__dirname, 'node_modules/baselode/package.json'), 'utf-8')
+  readFileSync(process.env.BASELODE_SOURCE
+    ? path.resolve(__dirname, path.dirname(process.env.BASELODE_SOURCE), '../package.json')
+    : path.resolve(__dirname, 'node_modules/baselode/package.json'), 'utf-8')
 );
 
 // Tauri uses 1420 by convention. The dev server must be bound to a fixed port
@@ -23,18 +25,28 @@ const TAURI_DEV_PORT = 1420;
 export default defineConfig({
   define: {
     __APP_VERSION__: JSON.stringify(pkg.version),
-    __BASELODE_VERSION__: JSON.stringify(baselodePkg.version),
+    __BASELODE_VERSION__: JSON.stringify(baselodePkg.version + (process.env.BASELODE_SOURCE ? ' (local source)' : '')),
   },
   plugins: [react()],
   // The geophysics worker lazy-loads code (GeoTIFF decoding), which needs
   // ES-module worker output.
   worker: { format: 'es' },
   resolve: {
+    // BASELODE_SOURCE=../baselode/javascript/packages/baselode/src/index.js
+    // builds against the sibling library source instead of the installed
+    // package. The geophysics worker imports the DOM-free subpath beside it.
+    alias: process.env.BASELODE_SOURCE ? [
+      { find: /^baselode$/, replacement: path.resolve(__dirname, process.env.BASELODE_SOURCE) },
+      {
+        find: /^baselode\/geophysics$/,
+        replacement: path.resolve(__dirname, path.dirname(process.env.BASELODE_SOURCE), 'geophysics.js'),
+      },
+    ] : [],
     // When baselode is npm-linked from the workspace (pre-release testing),
     // the symlinked package resolves peers from its own node_modules —
     // loading a second React copy and blank-screening the app at mount.
     // Force the app's single copies (mirrors demo-viewer-react's config).
-    dedupe: ['react', 'react-dom', 'three', 'three-viewport-gizmo', 'papaparse', 'plotly.js-dist-min'],
+    dedupe: ['react', 'react-dom', 'three', 'three-viewport-gizmo', 'papaparse', 'plotly.js-dist-min', 'geotiff'],
   },
   // Prevent Vite from obscuring Rust build errors in `tauri dev`.
   clearScreen: false,

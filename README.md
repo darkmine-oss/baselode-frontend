@@ -180,6 +180,19 @@ npm run tauri:dev
 
 Launches Vite, builds the Rust binary, and opens the Tauri window.
 
+### Testing unreleased baselode changes
+
+Point `BASELODE_SOURCE` at a sibling baselode checkout to build against its
+source instead of the installed package:
+
+```sh
+BASELODE_SOURCE=../baselode/javascript/packages/baselode/src/index.js npm run dev
+```
+
+This works with `npm run tauri:dev` and `npm run build` too. The footer then
+reads "(local source)" after the baselode version. The installed package is
+left untouched, so unset the variable to go back to it.
+
 ### Build a Windows installer
 
 ```sh
