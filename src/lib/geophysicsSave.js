@@ -35,8 +35,17 @@ export async function saveRasterFiles(files) {
   if (!path) return null;
   if (!path.toLowerCase().endsWith(`.${extension}`)) path = `${path}.${extension}`;
   const fs = await import('@tauri-apps/plugin-fs');
-  await fs.writeFile(path, primary.bytes);
   // The only sibling is an ERS data file: the header path without `.ers`.
-  for (const file of siblings) await fs.writeFile(path.replace(/\.ers$/i, ''), file.bytes);
+  // The save dialog confirmed replacing the header only, so ask about it.
+  const siblingPath = path.replace(/\.ers$/i, '');
+  if (siblings.length && await fs.exists(siblingPath)) {
+    const { confirm } = await import('@tauri-apps/plugin-dialog');
+    const name = siblingPath.split(/[\\/]/).pop();
+    if (!await confirm(`"${name}" already exists beside the header. Replace it with this grid's data?`, {
+      title: 'Replace data file?', kind: 'warning',
+    })) return null;
+  }
+  await fs.writeFile(path, primary.bytes);
+  for (const file of siblings) await fs.writeFile(siblingPath, file.bytes);
   return path;
 }

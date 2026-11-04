@@ -1,7 +1,7 @@
 /* Copyright (C) 2026 Darkmine Pty Ltd; SPDX-License-Identifier: GPL-3.0-or-later */
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { SAVE_FORMATS, collarCropBounds, rasterFiles, saveFileName } from '../src/lib/geophysicsEditing.js';
+import { SAVE_FORMATS, collarCropBounds, rasterFiles, saveFileName, singleBand } from '../src/lib/geophysicsEditing.js';
 import { METRES_PER_DEGREE } from '../src/lib/geophysicsProcessing.js';
 
 const projected = { crs: 'EPSG:28350', transform: [50, 0, 400000, 0, -50, 7000000], metadata: { crs_units: 'metre' } };
@@ -65,4 +65,17 @@ test('an ERS grid is a Latin-1 header and a data file named without .ers', () =>
   assert.equal(new TextDecoder('latin1').decode(header.bytes), 'Name = "tmi_cropped.ers" µ');
   assert.deepEqual({ name: data.name, bytes: [...data.bytes] }, { name: 'tmi_cropped', bytes: [1, 2, 3] });
   assert.deepEqual(rasterFiles({}, 'tmi.tif', 'geotiff', encoders).map(({ name, bytes }) => [name, [...bytes]]), [['tmi.tif', [9]]]);
+});
+
+test('a saved band keeps its own name and units', () => {
+  const raster = {
+    bandCount: 2, data: [[[1]], [[2]]], transform: [1, 0, 0, 0, -1, 1], crs: 'EPSG:28350', nodata: null,
+    bandNames: ['tmi', 'rtp'], metadata: { units: ['nT', 'nT RTP'], source: 'x.ers' },
+  };
+  assert.deepEqual(singleBand(raster, 2), {
+    data: [[[2]]], transform: [1, 0, 0, 0, -1, 1], crs: 'EPSG:28350', nodata: null,
+    bandNames: ['rtp'], metadata: { units: ['nT RTP'], source: 'x.ers' },
+  });
+  const one = { ...raster, bandCount: 1 };
+  assert.equal(singleBand(one, 1), one);
 });

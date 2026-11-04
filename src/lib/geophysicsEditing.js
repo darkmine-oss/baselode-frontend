@@ -93,3 +93,23 @@ export function rasterFiles(raster, fileName, formatId, { encodeErs, encodeGeoTi
   }
   return [{ name: fileName, bytes: new Uint8Array(encodeGeoTiff(raster)) }];
 }
+
+/**
+ * One band of a raster as a single-band raster payload, with its name and
+ * units, so a saved grid holds what the page shows.
+ *
+ * @param {object} raster
+ * @param {number} band - One-based.
+ * @returns {object}
+ */
+export function singleBand(raster, band) {
+  if (raster.bandCount === 1) return raster;
+  return {
+    data: [raster.data[band - 1]],
+    transform: raster.transform,
+    crs: raster.crs,
+    nodata: raster.nodata,
+    bandNames: [raster.bandNames[band - 1]],
+    metadata: { ...raster.metadata, units: [raster.metadata?.units?.[band - 1] ?? null] },
+  };
+}

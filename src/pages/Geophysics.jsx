@@ -10,7 +10,7 @@ import { useGeophysics } from '../context/GeophysicsContext.jsx';
 import { useProjectData } from '../context/ProjectDataContext.jsx';
 import { isTauri } from '../lib/projectIo.js';
 import { RASTER_SUBFOLDER, pickRasterFiles, rasterSourcesFromFiles } from '../lib/geophysicsIo.js';
-import { SAVE_FORMATS, rasterFiles, saveFileName } from '../lib/geophysicsEditing.js';
+import { SAVE_FORMATS, rasterFiles, saveFileName, singleBand } from '../lib/geophysicsEditing.js';
 import { saveRasterFiles } from '../lib/geophysicsSave.js';
 import {
   METRES_PER_DEGREE,
@@ -117,8 +117,9 @@ function Geophysics() {
     if (!saveable) return;
     setSaveState({ status: 'saving', message: '' });
     try {
-      const name = saveFileName(selected.label, [cropped && 'cropped', processing && operation.id], saveFormat);
-      const files = rasterFiles(shownRaster, name, saveFormat, { encodeErs, encodeGeoTiff });
+      const bandName = shownRaster.bandCount > 1 ? shownRaster.bandNames[shownBand - 1] : null;
+      const name = saveFileName(selected.label, [bandName, cropped && 'cropped', processing && operation.id], saveFormat);
+      const files = rasterFiles(singleBand(shownRaster, shownBand), name, saveFormat, { encodeErs, encodeGeoTiff });
       const path = await saveRasterFiles(files);
       setSaveState(path ? { status: 'saved', message: `Saved ${path}` } : { status: 'idle', message: '' });
     } catch (error) {
@@ -235,7 +236,7 @@ function Geophysics() {
         className="ghost-button small"
         onClick={onSave}
         disabled={!saveable || saveState.status === 'saving'}
-        title="Save the grid as shown: cropped and processed"
+        title="Save the band shown, cropped and processed as shown"
       >
         {saveState.status === 'saving' ? 'Saving…' : 'Save grid…'}
       </button>
