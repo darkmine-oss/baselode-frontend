@@ -218,3 +218,145 @@
   font-size: 12px;
   color: var(--color-on-surface-variant);
 }
+
+/* Grid values at collars and along profiles, below the viewer. */
+.geophysics-sampling {
+  flex: 0 0 auto;
+  border-top: var(--border-hairline) solid var(--color-outline-variant);
+  background: var(--color-surface-container-low);
+  font-size: 12px;
+  color: var(--color-on-surface-variant);
+}
+
+.geophysics-sampling.open {
+  height: min(40vh, 360px);
+  display: flex;
+  flex-direction: column;
+}
+
+.geophysics-sampling-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 20px;
+}
+
+.geophysics-sampling-toggle,
+.geophysics-sampling-tabs button {
+  border: none;
+  background: none;
+  color: var(--color-on-surface);
+  font: inherit;
+  padding: 4px 0;
+  cursor: pointer;
+}
+
+.geophysics-sampling-toggle {
+  font-weight: 600;
+}
+
+.geophysics-sampling-tabs {
+  display: flex;
+  gap: 12px;
+}
+
+.geophysics-sampling-tabs button {
+  color: var(--color-on-surface-variant);
+  border-bottom: 2px solid transparent;
+}
+
+.geophysics-sampling-tabs button.active {
+  color: var(--color-on-surface);
+  border-bottom-color: var(--color-primary);
+}
+
+.geophysics-sampling-option {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.geophysics-sampling-option select,
+.geophysics-sampling-option input {
+  border: var(--border-hairline) solid var(--color-outline-variant);
+  background: var(--color-surface-container);
+  color: var(--color-on-surface);
+  padding: 3px 6px;
+  font-size: 12px;
+  font-family: inherit;
+  max-width: 12em;
+}
+
+.geophysics-sampling-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 0 20px 10px;
+}
+
+.geophysics-sampling-summary,
+.geophysics-sampling-profile-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+}
+
+.geophysics-sampling-profile-controls {
+  justify-content: flex-start;
+}
+
+.geophysics-sampling-actions {
+  display: flex;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.geophysics-sampling-table-wrap {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+.geophysics-sampling-table {
+  border-collapse: collapse;
+  min-width: 18em;
+  font-variant-numeric: tabular-nums;
+}
+
+.geophysics-sampling-table th,
+.geophysics-sampling-table td {
+  text-align: left;
+  padding: 3px 16px 3px 0;
+  border-bottom: var(--border-hairline) solid var(--color-outline-variant);
+}
+
+.geophysics-sampling-table th {
+  position: sticky;
+  top: 0;
+  background: var(--color-surface-container-low);
+  color: var(--color-on-surface);
+  font-weight: 600;
+}
+
+.geophysics-sampling-table td:last-child {
+  text-align: right;
+}
+
+.geophysics-sampling-table tr.missing td:last-child {
+  color: var(--color-outline);
+  font-style: italic;
+}
+
+.geophysics-profile-plot {
+  flex: 1;
+  min-height: 0;
+}
+
+.geophysics-sampling-note {
+  padding: 0 20px 6px;
+}

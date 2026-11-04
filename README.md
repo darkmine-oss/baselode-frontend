@@ -56,9 +56,12 @@ Control enabled or may be managed by an employer.
   to the pole, vertical (1VD, 2VD) and horizontal derivatives, tilt
   derivative, analytic signal, upward continuation and low / high /
   band-pass filters, a residual (minus the upward-continued field) and gap
-  filling. Grids can be cropped to the project's collars and saved as
-  GeoTIFF or ER Mapper, cropped and processed as shown. Large grids are
-  block-averaged for display (and saved that way).
+  filling. Large grids are block-averaged for display (and saved that way).
+  The Grid values panel lists the shown grid's value at every collar and
+  plots a profile between two holes, with CSV export; lat/long collars are
+  reprojected to the grid's coordinate system. Grids can be cropped to the
+  project's collars and saved as GeoTIFF or ER Mapper, cropped and processed
+  as shown.
 - **Analytics** — scatter / histogram / box / violin / ternary plots over
   the loaded drillhole assays or surface samples, with categorical
   colouring (lithology, sample type, etc.).  Each plot has its own
