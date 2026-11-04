@@ -6,6 +6,7 @@ import { Component, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { GeophysicsRasterViewer } from 'baselode';
 import './Geophysics.css';
+import GeophysicsSamplingPanel from './GeophysicsSamplingPanel.jsx';
 import { useGeophysics } from '../context/GeophysicsContext.jsx';
 import { useProjectData } from '../context/ProjectDataContext.jsx';
 import { isTauri } from '../lib/projectIo.js';
@@ -261,6 +262,14 @@ function Geophysics() {
           )}
         </header>
         {content}
+        <GeophysicsSamplingPanel
+          raster={shownRaster ?? null}
+          band={shownBand}
+          label={processing ? operation.label : raster.bandNames[bandIndex - 1]}
+          units={units}
+          fileStem={selected.label}
+          collars={project.collars}
+        />
       </>
     );
   }

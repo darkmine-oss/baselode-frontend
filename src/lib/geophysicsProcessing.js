@@ -103,6 +103,11 @@ export function rasterCrsUnits(raster) {
   return null;
 }
 
+/** Metres in one grid coordinate unit, or null when the units are unknown. */
+export function metresPerGridUnit(raster) {
+  return METRES_PER_UNIT[rasterCrsUnits(raster)] ?? null;
+}
+
 /** Label for distance inputs: metres, or the grid's own units when unknown. */
 export function distanceUnitLabel(raster) {
   return rasterCrsUnits(raster) ? 'm' : 'grid units';
