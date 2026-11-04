@@ -211,6 +211,14 @@
   color: var(--color-on-surface-variant);
 }
 
+.geophysics-check {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--color-on-surface-variant);
+}
+
 /* Grid values at collars and along profiles, below the viewer. */
 .geophysics-sampling {
   flex: 0 0 auto;

@@ -4,13 +4,15 @@
  */
 import { Component, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { GeophysicsRasterViewer } from 'baselode';
+import { GeophysicsRasterViewer, encodeErs, encodeGeoTiff } from 'baselode';
 import './Geophysics.css';
 import GeophysicsSamplingPanel from './GeophysicsSamplingPanel.jsx';
 import { useGeophysics } from '../context/GeophysicsContext.jsx';
 import { useProjectData } from '../context/ProjectDataContext.jsx';
 import { isTauri } from '../lib/projectIo.js';
 import { RASTER_SUBFOLDER, pickRasterFiles, rasterSourcesFromFiles } from '../lib/geophysicsIo.js';
+import { SAVE_FORMATS, rasterFiles, saveFileName, singleBand } from '../lib/geophysicsEditing.js';
+import { saveRasterFiles } from '../lib/geophysicsSave.js';
 import {
   METRES_PER_DEGREE,
   PROCESSING_OPERATIONS,
@@ -67,9 +69,11 @@ class ViewerErrorBoundary extends Component {
 function Geophysics() {
   const project = useProjectData();
   const {
-    sources, selected, select, addOpened, removeOpened, loaded, band, setBand, view, setView, setActive,
-    processingId, processingParams, setProcessingId, setProcessingParam, processed,
+    sources, selected, select, addOpened, removeOpened, loaded, raster, band, setBand, view, setView, setActive,
+    processingId, processingParams, setProcessingId, setProcessingParam, processed, crop, setCrop, cropError, cropKey,
   } = useGeophysics();
+  const [saveFormat, setSaveFormat] = useState('geotiff');
+  const [saveState, setSaveState] = useState({ status: 'idle', message: '' });
   const fileInputRef = useRef(null);
   // The sidebar slot may not exist yet on the first render (direct
   // navigation to this page), so look it up once mounted.
@@ -97,15 +101,35 @@ function Geophysics() {
     event.target.value = '';
   };
 
-  const raster = loaded.raster;
   const bandIndex = raster ? Math.min(band, raster.bandCount) : 1;
   const operation = processingOperation(processingId);
   const processing = operation.id !== 'none';
   // A result for this grid and band; kept on screen while new settings run.
-  const result = processing && processed.key === `${selected?.id}:${bandIndex}` ? processed : null;
+  const result = processing && processed.key === `${selected?.id}:${bandIndex}:${cropKey}` ? processed : null;
   const shownRaster = processing ? result?.raster : raster;
   const shownBand = processing ? 1 : bandIndex;
   const units = raster ? processedUnits(processingId, raster.metadata?.units?.[bandIndex - 1] ?? undefined, raster) : undefined;
+  const cropped = crop.enabled && !cropError;
+  const decimation = (raster?.metadata?.processing ?? []).find((step) => step.operation === 'decimate');
+  // While new settings run, the previous result stays on screen; it must
+  // not be saved under the new settings' name.
+  const saveable = Boolean(shownRaster) && (!processing || processed.status === 'ready');
+  const onSave = async () => {
+    if (!saveable) return;
+    setSaveState({ status: 'saving', message: '' });
+    try {
+      const bandName = shownRaster.bandCount > 1 ? shownRaster.bandNames[shownBand - 1] : null;
+      const name = saveFileName(selected.label, [bandName, cropped && 'cropped', processing && operation.id], saveFormat);
+      const files = rasterFiles(singleBand(shownRaster, shownBand), name, saveFormat, { encodeErs, encodeGeoTiff });
+      const path = await saveRasterFiles(files);
+      setSaveState(path ? { status: 'saved', message: `Saved ${path}` } : { status: 'idle', message: '' });
+    } catch (error) {
+      setSaveState({ status: 'error', message: error?.message || String(error) });
+    }
+  };
+  // A message belongs to the grid it was about.
+  useEffect(() => setSaveState({ status: 'idle', message: '' }), [shownRaster]);
+
   const groups = [
     ['Project', sources.filter((source) => source.origin === 'project')],
     ['Opened', sources.filter((source) => source.origin === 'opened')],
@@ -177,6 +201,56 @@ function Geophysics() {
           This grid does not state its coordinate units, so distances are in its own units.
         </p>
       )}
+
+      <div className="label-caps geophysics-processing-title">Area</div>
+      <label className="geophysics-check">
+        <input
+          type="checkbox"
+          checked={crop.enabled}
+          onChange={(event) => setCrop({ enabled: event.target.checked })}
+        />
+        <span>Crop to project collars</span>
+      </label>
+      {crop.enabled && (
+        <label className="geophysics-field">
+          <span>Margin ({raster ? distanceUnitLabel(raster) : 'm'})</span>
+          <input
+            type="number"
+            value={crop.margin}
+            min="0"
+            step="any"
+            onChange={(event) => setCrop({ margin: event.target.value })}
+          />
+        </label>
+      )}
+      {crop.enabled && cropError && <p className="geophysics-hint" role="alert">{cropError} Showing the whole grid.</p>}
+
+      <div className="label-caps geophysics-processing-title">Save</div>
+      <label className="geophysics-field">
+        <span>Format</span>
+        <select value={saveFormat} onChange={(event) => setSaveFormat(event.target.value)}>
+          {SAVE_FORMATS.map((format) => <option key={format.id} value={format.id}>{format.label}</option>)}
+        </select>
+      </label>
+      <button
+        type="button"
+        className="ghost-button small"
+        onClick={onSave}
+        disabled={!saveable || saveState.status === 'saving'}
+        title="Save the band shown, cropped and processed as shown"
+      >
+        {saveState.status === 'saving' ? 'Saving…' : 'Save grid…'}
+      </button>
+      {decimation && (
+        <p className="geophysics-hint">
+          Saves the grid as displayed, averaged {decimation.factor}× from the file.
+        </p>
+      )}
+      {saveState.message && (
+        <p className={saveState.status === 'error' ? 'geophysics-hint error-text' : 'geophysics-hint'} role="status">
+          {saveState.message}
+        </p>
+      )}
     </div>
   );
 
@@ -208,7 +282,7 @@ function Geophysics() {
     );
   } else {
     let content;
-    if (processing && processed.status === 'error' && processed.key === `${selected.id}:${bandIndex}`) {
+    if (processing && processed.status === 'error' && processed.key === `${selected.id}:${bandIndex}:${cropKey}`) {
       content = (
         <div className="page-empty-state">
           <h2>Could not apply {operation.label.toLowerCase()}</h2>
@@ -244,6 +318,7 @@ function Geophysics() {
             <p className="geophysics-details">
               {[
                 ...rasterDetails(raster),
+                ...(cropped ? ['cropped to collars'] : []),
                 ...(processing ? [operation.label + (processed.status === 'processing' ? ' (updating…)' : '')] : []),
               ].join(' · ')}
             </p>

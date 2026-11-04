@@ -41,6 +41,14 @@ const METRE_EPSG_RANGES = [
 
 const DISTANCE = 'distance';
 const ANGLE = 'angle';
+const CELLS = 'cells';
+
+/**
+ * Operations the app's worker composes from baselode functions rather than
+ * passing to `processGeophysicsRaster`: gap filling, and a residual made by
+ * subtracting the upward-continued grid.
+ */
+export const APP_OPERATIONS = Object.freeze(['fill_gaps', 'residual']);
 
 /**
  * Operations in menu order. `id` identifies the menu entry; `operation` (if
@@ -73,6 +81,12 @@ export const PROCESSING_OPERATIONS = Object.freeze([
   { id: 'band_pass', label: 'Band-pass filter', params: [
     { key: 'longWavelength', label: 'Longest wavelength', kind: DISTANCE },
     { key: 'shortWavelength', label: 'Shortest wavelength', kind: DISTANCE },
+  ] },
+  { id: 'residual', label: 'Residual (minus upward continuation)', params: [
+    { key: 'height', label: 'Regional height', kind: DISTANCE },
+  ] },
+  { id: 'fill_gaps', label: 'Fill gaps', params: [
+    { key: 'maxDistance', label: 'Up to (cells from data)', kind: CELLS, min: 0 },
   ] },
 ]);
 
@@ -144,6 +158,7 @@ export function defaultProcessingParams(raster) {
     wavelength: niceDistance(shorter / 10),
     longWavelength: niceDistance(shorter / 4),
     shortWavelength: niceDistance(shorter / 40),
+    maxDistance: 10,
   };
 }
 
@@ -166,6 +181,9 @@ export function processingRequest(id, params, raster) {
     const raw = params[param.key];
     const value = raw === '' || raw == null ? NaN : Number(raw);
     if (!Number.isFinite(value)) throw new RangeError(`${param.label} must be a number.`);
+    if (param.kind === CELLS && !(Number.isInteger(value) && value >= 0)) {
+      throw new RangeError(`${param.label} must be a whole number of cells.`);
+    }
     options[param.key] = param.kind === DISTANCE ? value * scale : value;
   }
   return { operation: operation.operation ?? operation.id, options };
@@ -183,7 +201,8 @@ export function processingRequest(id, params, raster) {
 export function processedUnits(id, units, raster) {
   if (id === 'tilt_derivative') return '°';
   const operation = processingOperation(id);
-  if (['none', 'reduce_to_pole', 'upward_continuation', 'low_pass', 'high_pass', 'band_pass'].includes(operation.id)) {
+  if (['none', 'reduce_to_pole', 'upward_continuation', 'low_pass', 'high_pass', 'band_pass', 'residual', 'fill_gaps']
+    .includes(operation.id)) {
     return units;
   }
   const distance = UNIT_SYMBOLS[rasterCrsUnits(raster)];
