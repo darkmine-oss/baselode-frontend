@@ -13,9 +13,10 @@ import { RASTER_SUBFOLDER, pickRasterFiles, rasterSourcesFromFiles } from '../li
 import {
   METRES_PER_DEGREE,
   PROCESSING_OPERATIONS,
-  isGeographicRaster,
+  distanceUnitLabel,
   processedUnits,
   processingOperation,
+  rasterCrsUnits,
 } from '../lib/geophysicsProcessing.js';
 
 function formatNumber(value) {
@@ -148,7 +149,7 @@ function Geophysics() {
       </label>
       {operation.params.map((param) => (
         <label key={param.key} className="geophysics-field">
-          <span>{param.label}</span>
+          <span>{param.kind === 'distance' && raster ? `${param.label} (${distanceUnitLabel(raster)})` : param.label}</span>
           <input
             type="number"
             value={processingParams[param.key] ?? ''}
@@ -165,9 +166,14 @@ function Geophysics() {
           Induced magnetisation only.
         </p>
       )}
-      {processing && raster && isGeographicRaster(raster) && operation.params.some((param) => param.kind === 'distance') && (
+      {raster && operation.params.some((param) => param.kind === 'distance') && rasterCrsUnits(raster) === 'degree' && (
         <p className="geophysics-hint">
           This grid is in degrees; metres are converted at {(METRES_PER_DEGREE / 1000).toFixed(2)} km per degree.
+        </p>
+      )}
+      {raster && operation.params.some((param) => param.kind === 'distance') && !rasterCrsUnits(raster) && (
+        <p className="geophysics-hint">
+          This grid does not state its coordinate units, so distances are in its own units.
         </p>
       )}
     </div>

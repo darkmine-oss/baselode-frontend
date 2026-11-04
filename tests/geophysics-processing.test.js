@@ -5,28 +5,33 @@ import {
   METRES_PER_DEGREE,
   PROCESSING_OPERATIONS,
   defaultProcessingParams,
-  isGeographicRaster,
+  distanceUnitLabel,
   niceDistance,
   processedUnits,
   processingRequest,
+  rasterCrsUnits,
 } from '../src/lib/geophysicsProcessing.js';
 
-const projected = { crs: 'EPSG:28350', transform: [50, 0, 400000, 0, -50, 7000000], width: 400, height: 200, metadata: {} };
-const geographic = { crs: 'EPSG:4283', transform: [0.00225, 0, 118.4, 0, -0.00225, -23.4], width: 470, height: 579, metadata: {} };
+const projected = { crs: 'EPSG:28350', transform: [50, 0, 400000, 0, -50, 7000000], width: 400, height: 200, metadata: { crs_units: 'metre' } };
+const geographic = { crs: 'EPSG:4283', transform: [0.00225, 0, 118.4, 0, -0.00225, -23.4], width: 470, height: 579, metadata: { crs_units: 'degree' } };
 
-test('geographic grids are recognised by CRS, ERS projection or coordinates', () => {
-  const bounds = (minX, minY, maxX, maxY) => ({ minX, minY, maxX, maxY });
-  assert.equal(isGeographicRaster({ ...projected, bounds: bounds(400000, 6990000, 420000, 7000000) }), false);
-  assert.equal(isGeographicRaster(geographic), true);
-  for (const crs of ['EPSG:4269', 'EPSG:4258', 'EPSG:7844']) {
-    assert.equal(isGeographicRaster({ crs, metadata: {} }), true, crs);
-  }
-  assert.equal(isGeographicRaster({ crs: null, metadata: { projection: 'GEODETIC' } }), true);
-  assert.equal(isGeographicRaster({ crs: null, metadata: { projection: 'MGA50' } }), false);
-  // An unrecognised CRS whose coordinates can only be degrees.
-  const unknown = { crs: 'EPSG:9755', metadata: {}, transform: [0.001, 0, 10, 0, -0.001, 50] };
-  assert.equal(isGeographicRaster({ ...unknown, bounds: bounds(10, 49.5, 10.5, 50) }), true);
-  assert.equal(isGeographicRaster({ ...unknown, transform: [25, 0, 0, 0, -25, 0], bounds: bounds(0, -100, 175, 0) }), false);
+const bounds = (minX, minY, maxX, maxY) => ({ minX, minY, maxX, maxY });
+
+test('coordinate units come from baselode metadata, then EPSG codes, then coordinates', () => {
+  // Recorded units win, including projected 4xxx codes and feet.
+  assert.equal(rasterCrsUnits({ crs: 'EPSG:4087', metadata: { crs_units: 'metre' } }), 'metre');
+  assert.equal(rasterCrsUnits({ crs: 'EPSG:2277', metadata: { crs_units: 'us_survey_foot' } }), 'us_survey_foot');
+  assert.equal(rasterCrsUnits(geographic), 'degree');
+  assert.equal(rasterCrsUnits({ crs: 'EPSG:4269', metadata: {} }), 'degree');
+  assert.equal(rasterCrsUnits({ ...projected, metadata: {} }), 'metre');
+  // A projected 4xxx code with no recorded units is not assumed to be degrees.
+  const worldGrid = { crs: 'EPSG:4087', metadata: {}, transform: [1000, 0, 0, 0, -1000, 0], bounds: bounds(0, -5e5, 1e6, 0) };
+  assert.equal(rasterCrsUnits(worldGrid), null);
+  // Coordinates that can only be degrees.
+  const degrees = { crs: 'EPSG:9755', metadata: {}, transform: [0.001, 0, 10, 0, -0.001, 50], bounds: bounds(10, 49.5, 10.5, 50) };
+  assert.equal(rasterCrsUnits(degrees), 'degree');
+  assert.equal(distanceUnitLabel(worldGrid), 'grid units');
+  assert.equal(distanceUnitLabel(projected), 'm');
 });
 
 test('defaults scale with the grid and are round numbers', () => {
@@ -53,6 +58,11 @@ test('requests convert metres to degrees for geographic grids', () => {
     operation: 'reduce_to_pole', options: { inclination: -55, declination: 1.5 },
   });
   assert.throws(() => processingRequest('low_pass', { wavelength: '' }, projected), /must be a number/);
+  // Feet grids get feet; grids with unknown units take distances as entered.
+  const feet = { ...projected, metadata: { crs_units: 'foot' } };
+  assert.ok(Math.abs(processingRequest('upward_continuation', { height: 30.48 }, feet).options.height - 100) < 1e-9);
+  const unknown = { crs: null, metadata: {}, transform: [25, 0, 0, 0, -25, 0], width: 100, height: 100, bounds: bounds(0, -2500, 2500, 0) };
+  assert.equal(processingRequest('upward_continuation', { height: 40 }, unknown).options.height, 40);
 });
 
 test('units follow the operation', () => {
@@ -61,6 +71,8 @@ test('units follow the operation', () => {
   assert.equal(processedUnits('vertical_derivative', 'nT', projected), 'nT/m');
   assert.equal(processedUnits('second_vertical_derivative', 'mGal', geographic), 'mGal/°²');
   assert.equal(processedUnits('analytic_signal', undefined, projected), undefined);
+  assert.equal(processedUnits('vertical_derivative', 'nT', { ...projected, metadata: { crs_units: 'foot' } }), 'nT/ft');
+  assert.equal(processedUnits('vertical_derivative', 'nT', { crs: null, metadata: {}, transform: [25, 0, 0, 0, -25, 0], bounds: bounds(0, -2500, 2500, 0) }), undefined);
 });
 
 test('every operation maps to a baselode operation', async () => {

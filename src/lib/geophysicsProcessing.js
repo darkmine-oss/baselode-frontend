@@ -6,7 +6,7 @@
 /**
  * Geophysics grid processing choices for the Geophysics page: the operations
  * offered, their parameters and defaults, and conversion of the distances
- * people enter (metres) into the grid's CRS units for baselode's
+ * people enter (metres) into the grid's coordinate units for baselode's
  * `processGeophysicsRaster`.
  */
 
@@ -14,15 +14,39 @@
 // grids. One degree of latitude is 110.6–111.7 km, so this is approximate.
 export const METRES_PER_DEGREE = 111320;
 
-// EPSG numbers geographic 2-D CRSs 4000–4999; later ones are listed here.
-const LATER_GEOGRAPHIC_EPSG = new Set([7844]); // GDA2020
+const METRES_PER_UNIT = {
+  metre: 1,
+  foot: 0.3048,
+  us_survey_foot: 1200 / 3937,
+  degree: METRES_PER_DEGREE,
+};
+
+const UNIT_SYMBOLS = { metre: 'm', foot: 'ft', us_survey_foot: 'US ft', degree: '°' };
+
+// Fallbacks for grids whose files don't state their units (baselode's
+// `metadata.crs_units` is null): common geographic CRSs, and metre-based
+// projections used for Australian and global surveys.
+const GEOGRAPHIC_EPSG = new Set([4019, 4148, 4167, 4171, 4202, 4203, 4258, 4269, 4283, 4326, 4612, 4617, 7844]);
+const METRE_EPSG_RANGES = [
+  [28348, 28358], // GDA94 / MGA
+  [7846, 7859], // GDA2020 / MGA
+  [20248, 20258], // AGD66 / AMG
+  [20348, 20358], // AGD84 / AMG
+  [32601, 32660], // WGS 84 / UTM north
+  [32701, 32760], // WGS 84 / UTM south
+  [3577, 3577], // GDA94 / Australian Albers
+  [9473, 9473], // GDA2020 / Australian Albers
+  [3857, 3857], // Web Mercator
+];
 
 const DISTANCE = 'distance';
 const ANGLE = 'angle';
 
 /**
- * Operations in menu order. `id` is the baselode operation name; `none`
- * shows the grid as loaded. `params` lists the inputs shown for each.
+ * Operations in menu order. `id` identifies the menu entry; `operation` (if
+ * different) is the baselode operation name; `none` shows the grid as
+ * loaded. `params` lists the inputs shown for each; distance labels get the
+ * unit appended.
  */
 export const PROCESSING_OPERATIONS = Object.freeze([
   { id: 'none', label: 'None (original grid)', params: [] },
@@ -38,17 +62,17 @@ export const PROCESSING_OPERATIONS = Object.freeze([
   { id: 'tilt_derivative', label: 'Tilt derivative', params: [] },
   { id: 'analytic_signal', label: 'Analytic signal', params: [] },
   { id: 'upward_continuation', label: 'Upward continuation', params: [
-    { key: 'height', label: 'Height (m)', kind: DISTANCE },
+    { key: 'height', label: 'Height', kind: DISTANCE },
   ] },
   { id: 'low_pass', label: 'Low-pass filter (regional)', params: [
-    { key: 'wavelength', label: 'Cut-off wavelength (m)', kind: DISTANCE },
+    { key: 'wavelength', label: 'Cut-off wavelength', kind: DISTANCE },
   ] },
   { id: 'high_pass', label: 'High-pass filter (residual)', params: [
-    { key: 'wavelength', label: 'Cut-off wavelength (m)', kind: DISTANCE },
+    { key: 'wavelength', label: 'Cut-off wavelength', kind: DISTANCE },
   ] },
   { id: 'band_pass', label: 'Band-pass filter', params: [
-    { key: 'longWavelength', label: 'Longest wavelength (m)', kind: DISTANCE },
-    { key: 'shortWavelength', label: 'Shortest wavelength (m)', kind: DISTANCE },
+    { key: 'longWavelength', label: 'Longest wavelength', kind: DISTANCE },
+    { key: 'shortWavelength', label: 'Shortest wavelength', kind: DISTANCE },
   ] },
 ]);
 
@@ -58,49 +82,64 @@ export function processingOperation(id) {
   return BY_ID.get(id) ?? BY_ID.get('none');
 }
 
-/**
- * Whether a raster's coordinates are degrees of latitude and longitude:
- * from its EPSG code or ERS projection, otherwise from coordinates that
- * fit within ±180° / ±90° with cells under a tenth of a unit (no metre-based
- * geophysics grid has those).
- */
-export function isGeographicRaster(raster) {
-  const code = Number(String(raster?.crs ?? '').replace(/^EPSG:/i, ''));
-  if ((code >= 4000 && code < 5000) || LATER_GEOGRAPHIC_EPSG.has(code)) return true;
-  if (String(raster?.metadata?.projection ?? '').toUpperCase() === 'GEODETIC') return true;
-  const bounds = raster?.bounds;
-  if (!bounds || !raster.transform) return false;
-  const [a, b, , d, e] = raster.transform;
-  const largestCell = Math.max(Math.hypot(a, d), Math.hypot(b, e));
-  return largestCell < 0.1
-    && bounds.minX >= -180 && bounds.maxX <= 180
-    && bounds.minY >= -90 && bounds.maxY <= 90;
+function epsgCode(raster) {
+  const match = /^EPSG:(\d+)$/i.exec(String(raster?.crs ?? ''));
+  return match ? Number(match[1]) : null;
 }
 
-/** Grid extent `[width, height]` in metres (approximate for geographic grids). */
-export function rasterExtentMetres(raster) {
+/**
+ * A raster's coordinate units: `'degree'`, `'metre'`, `'foot'`,
+ * `'us_survey_foot'`, or null when they can't be determined. Uses
+ * baselode's `metadata.crs_units`, then well-known EPSG codes, then
+ * coordinates that can only be degrees (within ±180° / ±90° with cells
+ * under a tenth of a unit).
+ */
+export function rasterCrsUnits(raster) {
+  const recorded = raster?.metadata?.crs_units;
+  if (recorded && recorded in METRES_PER_UNIT) return recorded;
+  const code = epsgCode(raster);
+  if (GEOGRAPHIC_EPSG.has(code)) return 'degree';
+  if (METRE_EPSG_RANGES.some(([low, high]) => code >= low && code <= high)) return 'metre';
+  const bounds = raster?.bounds;
+  if (bounds && raster.transform) {
+    const [a, b, , d, e] = raster.transform;
+    const largestCell = Math.max(Math.hypot(a, d), Math.hypot(b, e));
+    if (largestCell < 0.1 && bounds.minX >= -180 && bounds.maxX <= 180 && bounds.minY >= -90 && bounds.maxY <= 90) {
+      return 'degree';
+    }
+  }
+  return null;
+}
+
+/** Label for distance inputs: metres, or the grid's own units when unknown. */
+export function distanceUnitLabel(raster) {
+  return rasterCrsUnits(raster) ? 'm' : 'grid units';
+}
+
+/** Grid extent `[width, height]` in the units distances are entered in. */
+function rasterExtent(raster) {
   const [a, b, , d, e] = raster.transform;
-  const scale = isGeographicRaster(raster) ? METRES_PER_DEGREE : 1;
+  const scale = METRES_PER_UNIT[rasterCrsUnits(raster)] ?? 1;
   return [Math.hypot(a, d) * raster.width * scale, Math.hypot(b, e) * raster.height * scale];
 }
 
 /** Round to one significant figure of 1, 2 or 5 (a "nice" distance). */
-export function niceDistance(metres) {
-  if (!(metres > 0)) return 1;
-  const power = 10 ** Math.floor(Math.log10(metres));
-  const leading = metres / power;
+export function niceDistance(value) {
+  if (!(value > 0)) return 1;
+  const power = 10 ** Math.floor(Math.log10(value));
+  const leading = value / power;
   return (leading < 1.5 ? 1 : leading < 3.5 ? 2 : leading < 7.5 ? 5 : 10) * power;
 }
 
 /**
- * Default parameter values for a grid, in the units shown (metres, degrees).
- * Distances scale with the grid: filters cut at a tenth of its shorter side
- * (band-pass between a quarter and a fortieth), upward continuation at a
- * fiftieth. The field direction suits Western Australia; replace it with the
- * survey's values.
+ * Default parameter values for a grid, in the units shown (metres, or grid
+ * units when unknown; degrees for angles). Distances scale with the grid:
+ * filters cut at a tenth of its shorter side (band-pass between a quarter
+ * and a fortieth), upward continuation at a fiftieth. The field direction
+ * suits Western Australia; replace it with the survey's values.
  */
 export function defaultProcessingParams(raster) {
-  const shorter = Math.min(...rasterExtentMetres(raster));
+  const shorter = Math.min(...rasterExtent(raster));
   return {
     inclination: -55,
     declination: 1,
@@ -113,7 +152,8 @@ export function defaultProcessingParams(raster) {
 
 /**
  * Turn a page selection into a baselode call: `{operation, options}` with
- * distances converted to CRS units, or null for the original grid.
+ * distances converted from metres to the grid's units (or passed through
+ * when those are unknown), or null for the original grid.
  *
  * @param {string} id - A {@link PROCESSING_OPERATIONS} id.
  * @param {object} params - Values in display units, keyed by param `key`.
@@ -123,7 +163,7 @@ export function defaultProcessingParams(raster) {
 export function processingRequest(id, params, raster) {
   const operation = processingOperation(id);
   if (operation.id === 'none') return null;
-  const scale = isGeographicRaster(raster) ? 1 / METRES_PER_DEGREE : 1;
+  const scale = 1 / (METRES_PER_UNIT[rasterCrsUnits(raster)] ?? 1);
   const options = { ...(operation.options ?? {}) };
   for (const param of operation.params) {
     const raw = params[param.key];
@@ -136,6 +176,7 @@ export function processingRequest(id, params, raster) {
 
 /**
  * Units for a processed band, or undefined when they can't be stated.
+ * Derivatives are per grid unit, as baselode computes them.
  *
  * @param {string} id - A {@link PROCESSING_OPERATIONS} id.
  * @param {string|undefined} units - The original band's units.
@@ -148,7 +189,7 @@ export function processedUnits(id, units, raster) {
   if (['none', 'reduce_to_pole', 'upward_continuation', 'low_pass', 'high_pass', 'band_pass'].includes(operation.id)) {
     return units;
   }
-  if (!units) return undefined;
-  const distance = isGeographicRaster(raster) ? '°' : 'm';
+  const distance = UNIT_SYMBOLS[rasterCrsUnits(raster)];
+  if (!units || !distance) return undefined;
   return operation.id === 'second_vertical_derivative' ? `${units}/${distance}²` : `${units}/${distance}`;
 }
