@@ -14,7 +14,8 @@
 // grids. One degree of latitude is 110.6–111.7 km, so this is approximate.
 export const METRES_PER_DEGREE = 111320;
 
-const GEOGRAPHIC_EPSG = new Set([4202, 4203, 4283, 4326, 4612, 7844]);
+// EPSG numbers geographic 2-D CRSs 4000–4999; later ones are listed here.
+const LATER_GEOGRAPHIC_EPSG = new Set([7844]); // GDA2020
 
 const DISTANCE = 'distance';
 const ANGLE = 'angle';
@@ -57,12 +58,23 @@ export function processingOperation(id) {
   return BY_ID.get(id) ?? BY_ID.get('none');
 }
 
-/** Whether a raster's coordinates are degrees of latitude and longitude. */
+/**
+ * Whether a raster's coordinates are degrees of latitude and longitude:
+ * from its EPSG code or ERS projection, otherwise from coordinates that
+ * fit within ±180° / ±90° with cells under a tenth of a unit (no metre-based
+ * geophysics grid has those).
+ */
 export function isGeographicRaster(raster) {
   const code = Number(String(raster?.crs ?? '').replace(/^EPSG:/i, ''));
-  if (GEOGRAPHIC_EPSG.has(code)) return true;
-  if (raster?.crs) return false;
-  return String(raster?.metadata?.projection ?? '').toUpperCase() === 'GEODETIC';
+  if ((code >= 4000 && code < 5000) || LATER_GEOGRAPHIC_EPSG.has(code)) return true;
+  if (String(raster?.metadata?.projection ?? '').toUpperCase() === 'GEODETIC') return true;
+  const bounds = raster?.bounds;
+  if (!bounds || !raster.transform) return false;
+  const [a, b, , d, e] = raster.transform;
+  const largestCell = Math.max(Math.hypot(a, d), Math.hypot(b, e));
+  return largestCell < 0.1
+    && bounds.minX >= -180 && bounds.maxX <= 180
+    && bounds.minY >= -90 && bounds.maxY <= 90;
 }
 
 /** Grid extent `[width, height]` in metres (approximate for geographic grids). */

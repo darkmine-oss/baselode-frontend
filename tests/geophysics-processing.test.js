@@ -14,11 +14,19 @@ import {
 const projected = { crs: 'EPSG:28350', transform: [50, 0, 400000, 0, -50, 7000000], width: 400, height: 200, metadata: {} };
 const geographic = { crs: 'EPSG:4283', transform: [0.00225, 0, 118.4, 0, -0.00225, -23.4], width: 470, height: 579, metadata: {} };
 
-test('geographic grids are recognised by CRS or ERS projection', () => {
-  assert.equal(isGeographicRaster(projected), false);
+test('geographic grids are recognised by CRS, ERS projection or coordinates', () => {
+  const bounds = (minX, minY, maxX, maxY) => ({ minX, minY, maxX, maxY });
+  assert.equal(isGeographicRaster({ ...projected, bounds: bounds(400000, 6990000, 420000, 7000000) }), false);
   assert.equal(isGeographicRaster(geographic), true);
+  for (const crs of ['EPSG:4269', 'EPSG:4258', 'EPSG:7844']) {
+    assert.equal(isGeographicRaster({ crs, metadata: {} }), true, crs);
+  }
   assert.equal(isGeographicRaster({ crs: null, metadata: { projection: 'GEODETIC' } }), true);
   assert.equal(isGeographicRaster({ crs: null, metadata: { projection: 'MGA50' } }), false);
+  // An unrecognised CRS whose coordinates can only be degrees.
+  const unknown = { crs: 'EPSG:9755', metadata: {}, transform: [0.001, 0, 10, 0, -0.001, 50] };
+  assert.equal(isGeographicRaster({ ...unknown, bounds: bounds(10, 49.5, 10.5, 50) }), true);
+  assert.equal(isGeographicRaster({ ...unknown, transform: [25, 0, 0, 0, -25, 0], bounds: bounds(0, -100, 175, 0) }), false);
 });
 
 test('defaults scale with the grid and are round numbers', () => {
