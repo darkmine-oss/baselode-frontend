@@ -55,7 +55,10 @@ Control enabled or may be managed by an employer.
   hillshading and a cursor read-out. Processing runs in the app: reduction
   to the pole, vertical (1VD, 2VD) and horizontal derivatives, tilt
   derivative, analytic signal, upward continuation and low / high /
-  band-pass filters. Large grids are block-averaged for display.
+  band-pass filters. Large grids are block-averaged for display. The
+  Grid values panel lists the shown grid's value at every collar and
+  plots a profile between two holes, with CSV export; lat/long collars
+  are reprojected to the grid's coordinate system.
 - **Analytics** — scatter / histogram / box / violin / ternary plots over
   the loaded drillhole assays or surface samples, with categorical
   colouring (lithology, sample type, etc.).  Each plot has its own

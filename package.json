@@ -22,7 +22,8 @@
     "@tauri-apps/api": "~2.11.1",
     "@tauri-apps/plugin-dialog": "~2.7.1",
     "@tauri-apps/plugin-fs": "~2.5.1",
-    "baselode": "^0.1.68",
+    "baselode": "^0.1.71",
+    "fzstd": "^0.1.1",
     "hyparquet": "*",
     "hyparquet-compressors": "1.1.1",
     "maplibre-gl": "*",
@@ -33,8 +34,7 @@
     "react-dom": "*",
     "react-router": "*",
     "three": "*",
-    "three-viewport-gizmo": "*",
-    "fzstd": "^0.1.1"
+    "three-viewport-gizmo": "*"
   },
   "devDependencies": {
     "@tauri-apps/cli": "*",
