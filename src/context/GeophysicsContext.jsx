@@ -3,8 +3,10 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { cropGeophysicsRaster, transformCrsPoints } from 'baselode';
 import { useProjectData } from './ProjectDataContext.jsx';
 import { loadRasterSource } from '../lib/geophysicsIo.js';
+import { collarCropBounds } from '../lib/geophysicsEditing.js';
 import { defaultProcessingParams, processingRequest } from '../lib/geophysicsProcessing.js';
 
 // Keeps the geophysics grid list, the shown grid and its display settings
@@ -30,6 +32,8 @@ const UNPROCESSED = { status: 'idle', raster: null, error: '', key: '' };
 const KEPT_PARAMS = ['inclination', 'declination'];
 // Wait for typing to pause before re-running a Fourier transform.
 const PROCESS_DELAY_MS = 300;
+// Cropping to the collars is off until asked for; the margin is in metres.
+const NO_CROP = { enabled: false, margin: 1000 };
 
 /** One band of a raster as a single-band raster payload. */
 function bandPayload(raster, band) {
@@ -61,7 +65,7 @@ function processInWorker(payload, request) {
 const GeophysicsContext = createContext(null);
 
 export function GeophysicsProvider({ children }) {
-  const { rasterSources } = useProjectData();
+  const { rasterSources, collars } = useProjectData();
   const [opened, setOpened] = useState([]);
   const [selectedId, setSelectedId] = useState('');
   const [band, setBand] = useState(1);
@@ -69,6 +73,7 @@ export function GeophysicsProvider({ children }) {
   const [loaded, setLoaded] = useState(IDLE);
   const [processing, setProcessing] = useState(NO_PROCESSING);
   const [processed, setProcessed] = useState(UNPROCESSED);
+  const [crop, setCropState] = useState(NO_CROP);
   // Grids are read only while the Geophysics page is shown, so opening a
   // project doesn't decode large grids for other pages.
   const [active, setActive] = useState(false);
@@ -105,7 +110,21 @@ export function GeophysicsProvider({ children }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selected, active]);
 
-  const shownRaster = selected && loaded.id === selected.id ? loaded.raster : null;
+  const loadedRaster = selected && loaded.id === selected.id ? loaded.raster : null;
+  // The grid the page works on: the loaded grid, or its part around the
+  // collars. A crop that can't be made leaves the whole grid with a reason.
+  const working = useMemo(() => {
+    if (!loadedRaster || !crop.enabled) return { raster: loadedRaster, error: '' };
+    try {
+      const bounds = collarCropBounds(collars, loadedRaster, crop.margin, transformCrsPoints);
+      return { raster: cropGeophysicsRaster(loadedRaster, bounds), error: '' };
+    } catch (error) {
+      return { raster: loadedRaster, error: error.message || String(error) };
+    }
+  }, [loadedRaster, crop, collars]);
+  const shownRaster = working.raster;
+  // Names the area a processed result belongs to, with the grid and band.
+  const cropKey = crop.enabled && !working.error ? `crop:${crop.margin}` : 'full';
   const processingParams = useMemo(
     () => (shownRaster ? { ...defaultProcessingParams(shownRaster), ...processing.params } : processing.params),
     [shownRaster, processing.params],
@@ -119,7 +138,7 @@ export function GeophysicsProvider({ children }) {
       return undefined;
     }
     const shownBand = Math.min(band, shownRaster.bandCount);
-    const key = `${selected.id}:${shownBand}`;
+    const key = `${selected.id}:${shownBand}:${cropKey}`;
     let request;
     try {
       request = processingRequest(processing.id, processingParams, shownRaster);
@@ -142,9 +161,11 @@ export function GeophysicsProvider({ children }) {
       clearTimeout(timer);
       job?.cancel();
     };
-    // `selected` changes only with `shownRaster`.
+    // `selected` and `cropKey` change only with `shownRaster`.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [shownRaster, band, processing.id, processingParams]);
+
+  const setCrop = useCallback((patch) => setCropState((current) => ({ ...current, ...patch })), []);
 
   const setProcessingId = useCallback((id) => setProcessing((current) => ({ ...current, id })), []);
   const setProcessingParam = useCallback((key, value) => {
@@ -173,6 +194,11 @@ export function GeophysicsProvider({ children }) {
     addOpened,
     removeOpened,
     loaded: selected && loaded.id === selected.id ? loaded : IDLE,
+    raster: shownRaster,
+    crop,
+    setCrop,
+    cropError: working.error,
+    cropKey,
     band,
     setBand,
     view,
@@ -183,8 +209,8 @@ export function GeophysicsProvider({ children }) {
     setProcessingId,
     setProcessingParam,
     processed,
-  }), [sources, selected, addOpened, removeOpened, loaded, band, view, processing.id, processingParams,
-    setProcessingId, setProcessingParam, processed]);
+  }), [sources, selected, addOpened, removeOpened, loaded, shownRaster, crop, setCrop, working.error, cropKey, band,
+    view, processing.id, processingParams, setProcessingId, setProcessingParam, processed]);
 
   return <GeophysicsContext.Provider value={value}>{children}</GeophysicsContext.Provider>;
 }

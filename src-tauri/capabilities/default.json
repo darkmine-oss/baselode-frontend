@@ -1,12 +1,14 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Capabilities granted to the main window. Lets the user pick a folder via the system dialog and read CSV/Parquet files and geophysics grids from inside it. Scope is limited to common user-data roots so the webview can't reach system directories even if a future code path slipped untrusted content into the page.",
+  "description": "Capabilities granted to the main window. Lets the user pick a folder via the system dialog and read CSV/Parquet files and geophysics grids from inside it, and save geophysics grids to a location they choose in a save dialog. Scope is limited to common user-data roots so the webview can't reach system directories even if a future code path slipped untrusted content into the page.",
   "windows": ["main"],
   "permissions": [
     "core:default",
     "dialog:default",
+    "dialog:allow-save",
     "fs:default",
+    "fs:allow-write-file",
     "fs:allow-read-text-file",
     "fs:allow-read-file",
     "fs:allow-exists",

@@ -2,6 +2,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  APP_OPERATIONS,
   METRES_PER_DEGREE,
   PROCESSING_OPERATIONS,
   defaultProcessingParams,
@@ -36,7 +37,7 @@ test('coordinate units come from baselode metadata, then EPSG codes, then coordi
 
 test('defaults scale with the grid and are round numbers', () => {
   assert.deepEqual(defaultProcessingParams(projected), {
-    inclination: -55, declination: 1, height: 200, wavelength: 1000, longWavelength: 2000, shortWavelength: 200,
+    inclination: -55, declination: 1, height: 200, wavelength: 1000, longWavelength: 2000, shortWavelength: 200, maxDistance: 10,
   });
   // 470 x 0.00225 degrees is about 118 km east-west (the shorter side).
   assert.equal(defaultProcessingParams(geographic).wavelength, 10000);
@@ -79,6 +80,20 @@ test('every operation maps to a baselode operation', async () => {
   const { GEOPHYSICS_OPERATIONS } = await import('baselode').catch(() => ({}));
   if (!GEOPHYSICS_OPERATIONS) return; // baselode needs a browser-like environment
   for (const item of PROCESSING_OPERATIONS.filter((entry) => entry.id !== 'none')) {
+    if (APP_OPERATIONS.includes(item.operation ?? item.id)) continue;
     assert.ok(GEOPHYSICS_OPERATIONS.includes(item.operation ?? item.id), item.id);
   }
+});
+
+test('fill gaps and residual requests', () => {
+  assert.deepEqual(processingRequest('fill_gaps', { maxDistance: '4' }, projected), {
+    operation: 'fill_gaps', options: { maxDistance: 4 },
+  });
+  assert.throws(() => processingRequest('fill_gaps', { maxDistance: '2.5' }, projected), /whole number/);
+  assert.deepEqual(processingRequest('residual', { height: 500 }, geographic), {
+    operation: 'residual', options: { height: 500 / METRES_PER_DEGREE },
+  });
+  assert.equal(processedUnits('residual', 'nT', projected), 'nT');
+  assert.equal(processedUnits('fill_gaps', 'mGal', projected), 'mGal');
+  assert.equal(defaultProcessingParams(projected).maxDistance, 10);
 });
