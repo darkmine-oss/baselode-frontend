@@ -10,6 +10,13 @@ import { useGeophysics } from '../context/GeophysicsContext.jsx';
 import { useProjectData } from '../context/ProjectDataContext.jsx';
 import { isTauri } from '../lib/projectIo.js';
 import { RASTER_SUBFOLDER, pickRasterFiles, rasterSourcesFromFiles } from '../lib/geophysicsIo.js';
+import {
+  METRES_PER_DEGREE,
+  PROCESSING_OPERATIONS,
+  isGeographicRaster,
+  processedUnits,
+  processingOperation,
+} from '../lib/geophysicsProcessing.js';
 
 function formatNumber(value) {
   if (!Number.isFinite(value)) return '–';
@@ -57,7 +64,10 @@ class ViewerErrorBoundary extends Component {
 
 function Geophysics() {
   const project = useProjectData();
-  const { sources, selected, select, addOpened, removeOpened, loaded, band, setBand, view, setView, setActive } = useGeophysics();
+  const {
+    sources, selected, select, addOpened, removeOpened, loaded, band, setBand, view, setView, setActive,
+    processingId, processingParams, setProcessingId, setProcessingParam, processed,
+  } = useGeophysics();
   const fileInputRef = useRef(null);
   // The sidebar slot may not exist yet on the first render (direct
   // navigation to this page), so look it up once mounted.
@@ -87,7 +97,13 @@ function Geophysics() {
 
   const raster = loaded.raster;
   const bandIndex = raster ? Math.min(band, raster.bandCount) : 1;
-  const units = raster?.metadata?.units?.[bandIndex - 1] ?? undefined;
+  const operation = processingOperation(processingId);
+  const processing = operation.id !== 'none';
+  // A result for this grid and band; kept on screen while new settings run.
+  const result = processing && processed.key === `${selected?.id}:${bandIndex}` ? processed : null;
+  const shownRaster = processing ? result?.raster : raster;
+  const shownBand = processing ? 1 : bandIndex;
+  const units = raster ? processedUnits(processingId, raster.metadata?.units?.[bandIndex - 1] ?? undefined, raster) : undefined;
   const groups = [
     ['Project', sources.filter((source) => source.origin === 'project')],
     ['Opened', sources.filter((source) => source.origin === 'opened')],
@@ -122,6 +138,38 @@ function Geophysics() {
         </div>
       ))}
       <button type="button" className="ghost-button small" onClick={onOpenClick}>Open grid files…</button>
+
+      <div className="label-caps geophysics-processing-title">Processing</div>
+      <label className="geophysics-field">
+        <span>Operation</span>
+        <select value={operation.id} onChange={(event) => setProcessingId(event.target.value)}>
+          {PROCESSING_OPERATIONS.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}
+        </select>
+      </label>
+      {operation.params.map((param) => (
+        <label key={param.key} className="geophysics-field">
+          <span>{param.label}</span>
+          <input
+            type="number"
+            value={processingParams[param.key] ?? ''}
+            min={param.min}
+            max={param.max}
+            step="any"
+            onChange={(event) => setProcessingParam(param.key, event.target.value)}
+          />
+        </label>
+      ))}
+      {operation.id === 'reduce_to_pole' && (
+        <p className="geophysics-hint">
+          Use the survey&apos;s geomagnetic field direction from its report or an IGRF calculator.
+          Induced magnetisation only.
+        </p>
+      )}
+      {processing && raster && isGeographicRaster(raster) && operation.params.some((param) => param.kind === 'distance') && (
+        <p className="geophysics-hint">
+          This grid is in degrees; metres are converted at {(METRES_PER_DEGREE / 1000).toFixed(2)} km per degree.
+        </p>
+      )}
     </div>
   );
 
@@ -152,12 +200,46 @@ function Geophysics() {
       </div>
     );
   } else {
+    let content;
+    if (processing && processed.status === 'error' && processed.key === `${selected.id}:${bandIndex}`) {
+      content = (
+        <div className="page-empty-state">
+          <h2>Could not apply {operation.label.toLowerCase()}</h2>
+          <p className="error-text" role="alert">{processed.error}</p>
+        </div>
+      );
+    } else if (!shownRaster) {
+      content = (
+        <div className="page-empty-state">
+          <p>Applying {operation.label.toLowerCase()}…</p>
+        </div>
+      );
+    } else {
+      content = (
+        <ViewerErrorBoundary key={`${selected.id}:${bandIndex}:${operation.id}`}>
+          <GeophysicsRasterViewer
+            className="geophysics-viewer"
+            raster={shownRaster}
+            band={shownBand}
+            units={units}
+            value={view}
+            onViewChange={setView}
+            height="auto"
+          />
+        </ViewerErrorBoundary>
+      );
+    }
     body = (
       <>
         <header className="geophysics-header">
           <div>
             <h1>{selected.label}</h1>
-            <p className="geophysics-details">{rasterDetails(raster).join(' · ')}</p>
+            <p className="geophysics-details">
+              {[
+                ...rasterDetails(raster),
+                ...(processing ? [operation.label + (processed.status === 'processing' ? ' (updating…)' : '')] : []),
+              ].join(' · ')}
+            </p>
           </div>
           {raster.bandCount > 1 && (
             <label className="geophysics-band">
@@ -172,17 +254,7 @@ function Geophysics() {
             </label>
           )}
         </header>
-        <ViewerErrorBoundary key={`${selected.id}:${bandIndex}`}>
-          <GeophysicsRasterViewer
-            className="geophysics-viewer"
-            raster={raster}
-            band={bandIndex}
-            units={units}
-            value={view}
-            onViewChange={setView}
-            height="auto"
-          />
-        </ViewerErrorBoundary>
+        {content}
       </>
     );
   }
