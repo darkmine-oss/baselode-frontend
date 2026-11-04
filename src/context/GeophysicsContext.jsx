@@ -5,6 +5,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { useProjectData } from './ProjectDataContext.jsx';
 import { loadRasterSource } from '../lib/geophysicsIo.js';
+import { defaultProcessingParams, processingRequest } from '../lib/geophysicsProcessing.js';
 
 // Keeps the geophysics grid list, the shown grid and its display settings
 // across route navigation, so returning to the page doesn't re-read a large
@@ -20,6 +21,42 @@ export const DEFAULT_GEOPHYSICS_VIEW = Object.freeze({
 });
 
 const IDLE = { id: '', source: null, status: 'idle', raster: null, error: '' };
+const NO_PROCESSING = { id: 'none', params: {} };
+// `key` names the grid and band a result belongs to, so a previous grid's
+// result is never shown under a newly selected one.
+const UNPROCESSED = { status: 'idle', raster: null, error: '', key: '' };
+// The field direction applies to every grid of a survey area; distances are
+// re-derived from each grid's size.
+const KEPT_PARAMS = ['inclination', 'declination'];
+// Wait for typing to pause before re-running a Fourier transform.
+const PROCESS_DELAY_MS = 300;
+
+/** One band of a raster as a single-band raster payload. */
+function bandPayload(raster, band) {
+  return {
+    data: [raster.data[band - 1]],
+    transform: raster.transform,
+    crs: raster.crs,
+    nodata: raster.nodata,
+    bandNames: [raster.bandNames[band - 1]],
+    metadata: { ...raster.metadata, units: [raster.metadata?.units?.[band - 1] ?? null] },
+  };
+}
+
+/**
+ * Process a payload in a Web Worker. Returns the result promise and a
+ * `cancel` that terminates the worker, so a superseded request stops
+ * instead of finishing in the background.
+ */
+function processInWorker(payload, request) {
+  const worker = new Worker(new URL('../workers/geophysicsWorker.js', import.meta.url), { type: 'module' });
+  const result = new Promise((resolve, reject) => {
+    worker.onmessage = ({ data }) => (data.error ? reject(new Error(data.error)) : resolve(data.raster));
+    worker.onerror = (event) => reject(new Error(event.message || 'Geophysics processing failed.'));
+    worker.postMessage({ raster: payload, operation: request.operation, options: request.options });
+  });
+  return { result: result.finally(() => worker.terminate()), cancel: () => worker.terminate() };
+}
 
 const GeophysicsContext = createContext(null);
 
@@ -30,6 +67,8 @@ export function GeophysicsProvider({ children }) {
   const [band, setBand] = useState(1);
   const [view, setView] = useState(DEFAULT_GEOPHYSICS_VIEW);
   const [loaded, setLoaded] = useState(IDLE);
+  const [processing, setProcessing] = useState(NO_PROCESSING);
+  const [processed, setProcessed] = useState(UNPROCESSED);
   // Grids are read only while the Geophysics page is shown, so opening a
   // project doesn't decode large grids for other pages.
   const [active, setActive] = useState(false);
@@ -49,7 +88,13 @@ export function GeophysicsProvider({ children }) {
     if (!active) return undefined;
     let cancelled = false;
     const base = { id: selected.id, source: selected, raster: null, error: '' };
-    if (loaded.id !== selected.id) setBand(1);
+    if (loaded.id !== selected.id) {
+      setBand(1);
+      setProcessing((current) => ({
+        ...current,
+        params: Object.fromEntries(Object.entries(current.params).filter(([key]) => KEPT_PARAMS.includes(key))),
+      }));
+    }
     setLoaded({ ...base, status: 'loading' });
     loadRasterSource(selected).then(
       (raster) => { if (!cancelled) setLoaded({ ...base, status: 'ready', raster }); },
@@ -59,6 +104,52 @@ export function GeophysicsProvider({ children }) {
     // `loaded` is only consulted to skip reloading the grid already shown.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selected, active]);
+
+  const shownRaster = selected && loaded.id === selected.id ? loaded.raster : null;
+  const processingParams = useMemo(
+    () => (shownRaster ? { ...defaultProcessingParams(shownRaster), ...processing.params } : processing.params),
+    [shownRaster, processing.params],
+  );
+
+  // Run the chosen operation on the shown band in a Web Worker, so large
+  // grids don't freeze the page. A newer request terminates an older one.
+  useEffect(() => {
+    if (!shownRaster || processing.id === 'none') {
+      setProcessed(UNPROCESSED);
+      return undefined;
+    }
+    const shownBand = Math.min(band, shownRaster.bandCount);
+    const key = `${selected.id}:${shownBand}`;
+    let request;
+    try {
+      request = processingRequest(processing.id, processingParams, shownRaster);
+    } catch (error) {
+      setProcessed({ ...UNPROCESSED, status: 'error', error: error.message, key });
+      return undefined;
+    }
+    let cancelled = false;
+    let job = null;
+    setProcessed((current) => ({ ...current, status: 'processing', error: '' }));
+    const timer = setTimeout(() => {
+      job = processInWorker(bandPayload(shownRaster, shownBand), request);
+      job.result.then(
+        (raster) => { if (!cancelled) setProcessed({ status: 'ready', raster, error: '', key }); },
+        (error) => { if (!cancelled) setProcessed({ ...UNPROCESSED, status: 'error', error: error.message, key }); },
+      );
+    }, PROCESS_DELAY_MS);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+      job?.cancel();
+    };
+    // `selected` changes only with `shownRaster`.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [shownRaster, band, processing.id, processingParams]);
+
+  const setProcessingId = useCallback((id) => setProcessing((current) => ({ ...current, id })), []);
+  const setProcessingParam = useCallback((key, value) => {
+    setProcessing((current) => ({ ...current, params: { ...current.params, [key]: value } }));
+  }, []);
 
   const addOpened = useCallback((next) => {
     if (!next.length) return;
@@ -87,7 +178,13 @@ export function GeophysicsProvider({ children }) {
     view,
     setView,
     setActive,
-  }), [sources, selected, addOpened, removeOpened, loaded, band, view]);
+    processingId: processing.id,
+    processingParams,
+    setProcessingId,
+    setProcessingParam,
+    processed,
+  }), [sources, selected, addOpened, removeOpened, loaded, band, view, processing.id, processingParams,
+    setProcessingId, setProcessingParam, processed]);
 
   return <GeophysicsContext.Provider value={value}>{children}</GeophysicsContext.Provider>;
 }

@@ -114,6 +114,14 @@ function DataInstructions() {
           AGD66/84 and WGS84 datums map to EPSG codes. Rotated ERS grids are not supported. Grids larger
           than a million cells are block-averaged for display; the header shows the factor.
         </p>
+        <p>
+          The Processing panel derives enhanced grids from the band shown: reduction to the pole,
+          vertical and horizontal derivatives, tilt derivative, analytic signal, upward continuation
+          and wavelength filters. Distances are entered in metres; for latitude/longitude grids they
+          are converted at about 111 km per degree. Reduction to the pole needs the survey&apos;s
+          geomagnetic inclination and declination, from its report or an IGRF calculator, and is not
+          available within 15° of the magnetic equator.
+        </p>
 
         <h2>Local coordinates</h2>
         <p>

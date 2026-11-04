@@ -26,6 +26,9 @@ export default defineConfig({
     __BASELODE_VERSION__: JSON.stringify(baselodePkg.version),
   },
   plugins: [react()],
+  // The geophysics worker lazy-loads code (GeoTIFF decoding), which needs
+  // ES-module worker output.
+  worker: { format: 'es' },
   resolve: {
     // When baselode is npm-linked from the workspace (pre-release testing),
     // the symlinked package resolves peers from its own node_modules —

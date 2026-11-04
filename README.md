@@ -52,8 +52,10 @@ Control enabled or may be managed by an employer.
 - **Geophysics** — ER Mapper (`.ers`) and GeoTIFF grids from the project
   folder (top level or a `geophysics/` subfolder) or opened directly, with
   colour scales, relative / absolute / histogram-equalised stretches,
-  hillshading and a cursor read-out. Large grids are block-averaged for
-  display.
+  hillshading and a cursor read-out. Processing runs in the app: reduction
+  to the pole, vertical (1VD, 2VD) and horizontal derivatives, tilt
+  derivative, analytic signal, upward continuation and low / high /
+  band-pass filters. Large grids are block-averaged for display.
 - **Analytics** — scatter / histogram / box / violin / ternary plots over
   the loaded drillhole assays or surface samples, with categorical
   colouring (lithology, sample type, etc.).  Each plot has its own
