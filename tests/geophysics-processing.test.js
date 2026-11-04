@@ -27,9 +27,9 @@ test('coordinate units come from baselode metadata, then EPSG codes, then coordi
   // A projected 4xxx code with no recorded units is not assumed to be degrees.
   const worldGrid = { crs: 'EPSG:4087', metadata: {}, transform: [1000, 0, 0, 0, -1000, 0], bounds: bounds(0, -5e5, 1e6, 0) };
   assert.equal(rasterCrsUnits(worldGrid), null);
-  // Coordinates that can only be degrees.
-  const degrees = { crs: 'EPSG:9755', metadata: {}, transform: [0.001, 0, 10, 0, -0.001, 50], bounds: bounds(10, 49.5, 10.5, 50) };
-  assert.equal(rasterCrsUnits(degrees), 'degree');
+  // Small coordinates and cells don't establish degrees (a fine local grid).
+  const local = { crs: null, metadata: {}, transform: [0.05, 0, 0, 0, -0.05, 5], bounds: bounds(0, 0, 5, 5) };
+  assert.equal(rasterCrsUnits(local), null);
   assert.equal(distanceUnitLabel(worldGrid), 'grid units');
   assert.equal(distanceUnitLabel(projected), 'm');
 });

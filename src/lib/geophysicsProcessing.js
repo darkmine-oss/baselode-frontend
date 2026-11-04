@@ -90,9 +90,9 @@ function epsgCode(raster) {
 /**
  * A raster's coordinate units: `'degree'`, `'metre'`, `'foot'`,
  * `'us_survey_foot'`, or null when they can't be determined. Uses
- * baselode's `metadata.crs_units`, then well-known EPSG codes, then
- * coordinates that can only be degrees (within ±180° / ±90° with cells
- * under a tenth of a unit).
+ * baselode's `metadata.crs_units`, then well-known EPSG codes. Coordinate
+ * values alone are not trusted: a fine local grid near the origin looks
+ * like degrees.
  */
 export function rasterCrsUnits(raster) {
   const recorded = raster?.metadata?.crs_units;
@@ -100,14 +100,6 @@ export function rasterCrsUnits(raster) {
   const code = epsgCode(raster);
   if (GEOGRAPHIC_EPSG.has(code)) return 'degree';
   if (METRE_EPSG_RANGES.some(([low, high]) => code >= low && code <= high)) return 'metre';
-  const bounds = raster?.bounds;
-  if (bounds && raster.transform) {
-    const [a, b, , d, e] = raster.transform;
-    const largestCell = Math.max(Math.hypot(a, d), Math.hypot(b, e));
-    if (largestCell < 0.1 && bounds.minX >= -180 && bounds.maxX <= 180 && bounds.minY >= -90 && bounds.maxY <= 90) {
-      return 'degree';
-    }
-  }
   return null;
 }
 
