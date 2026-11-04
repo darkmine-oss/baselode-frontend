@@ -38,7 +38,21 @@ export async function saveRasterFiles(files) {
   // The only sibling is an ERS data file: the header path without `.ers`.
   // The save dialog confirmed replacing the header only, so ask about it.
   const siblingPath = path.replace(/\.ers$/i, '');
-  if (siblings.length && await fs.exists(siblingPath)) {
+  let siblingExists = false;
+  if (siblings.length) {
+    // The dialog grants access to the header path only; the data file is
+    // reachable when it lies inside the app's file scope (home, Desktop,
+    // Documents, Downloads). Check before writing anything.
+    try {
+      siblingExists = await fs.exists(siblingPath);
+    } catch (error) {
+      throw new Error(
+        'ER Mapper grids need a data file beside the header, which can only be written inside your home folder. '
+        + `Choose a folder there, or save as GeoTIFF. (${error?.message || error})`,
+      );
+    }
+  }
+  if (siblingExists) {
     const { confirm } = await import('@tauri-apps/plugin-dialog');
     const name = siblingPath.split(/[\\/]/).pop();
     if (!await confirm(`"${name}" already exists beside the header. Replace it with this grid's data?`, {
