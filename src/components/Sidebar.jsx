@@ -99,6 +99,9 @@ function Sidebar() {
         {project.status === 'ready' && Object.entries(project.errors || {}).map(([key, message]) => (
           <div key={key} className="error-banner small" role="alert">{key}: {message}</div>
         ))}
+        {project.status === 'ready' && (project.warnings || []).map((message, index) => (
+          <div key={index} className="warning-banner small" role="status">{message}</div>
+        ))}
         {project.status === 'ready' && (
           <button type="button" className="ghost-button small sidebar-close-btn" onClick={project.closeProject}>
             Close
