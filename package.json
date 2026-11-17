@@ -22,7 +22,7 @@
     "@tauri-apps/api": "~2.11.1",
     "@tauri-apps/plugin-dialog": "~2.7.1",
     "@tauri-apps/plugin-fs": "~2.5.1",
-    "baselode": "^0.1.71",
+    "baselode": "^0.1.107",
     "fzstd": "^0.1.1",
     "hyparquet": "*",
     "hyparquet-compressors": "1.1.1",
