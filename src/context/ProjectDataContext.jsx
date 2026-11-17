@@ -30,6 +30,7 @@ const initial = {
   status: 'idle', // 'idle' | 'loading' | 'ready' | 'error'
   folderPath: '',
   errors: {},
+  warnings: [],
   collars: [],
   assayState: null,
   combinedHoles: [],
@@ -51,7 +52,7 @@ export function ProjectDataProvider({ children }) {
   const [state, setState] = useState(initial);
 
   const closeProject = useCallback(() => {
-    setState((s) => ({ ...s, status: 'idle', folderPath: '', errors: {}, collars: [], assayState: null, combinedHoles: [], structureRows: null, geologyHoles: [], surfaceSamples: [], categoricalColorMap: {}, rawCsv: { precomputed: null, survey: null, colors: null }, formats: {}, rasterSources: [] }));
+    setState((s) => ({ ...s, status: 'idle', folderPath: '', errors: {}, warnings: [], collars: [], assayState: null, combinedHoles: [], structureRows: null, geologyHoles: [], surfaceSamples: [], categoricalColorMap: {}, rawCsv: { precomputed: null, survey: null, colors: null }, formats: {}, rasterSources: [] }));
     try {
       localStorage.removeItem(LAST_PROJECT_KEY);
     } catch (e) {
@@ -68,6 +69,7 @@ export function ProjectDataProvider({ children }) {
         status: 'ready',
         folderPath: read.folderPath,
         errors: parsed.errors,
+        warnings: parsed.warnings,
         collars: parsed.collars,
         assayState: parsed.assayState,
         combinedHoles: parsed.combinedHoles,
@@ -83,7 +85,7 @@ export function ProjectDataProvider({ children }) {
         try { localStorage.setItem(LAST_PROJECT_KEY, read.folderPath); } catch (e) { /* ignore */ }
       }
     } catch (e) {
-      setState((s) => ({ ...s, status: 'error', errors: { load: e?.message || String(e) } }));
+      setState((s) => ({ ...s, status: 'error', warnings: [], errors: { load: e?.message || String(e) } }));
     }
   }, []);
 
@@ -144,12 +146,13 @@ export function useProjectData() {
 async function parseProject(read) {
   const { files } = read;
   const errors = { ...read.errors };
+  const warnings = [];
   const hasSource = (source) => (
     Array.isArray(source) ? source.length > 0 : Boolean(source)
   );
 
   // Collars — required.
-  const collars = parseCollars(files.collars);
+  const collars = parseCollars(files.collars, warnings);
 
   // Assays — Parquet rows bypass CSV serialization and parsing.
   let assayState = null;
@@ -248,6 +251,7 @@ async function parseProject(read) {
     surfaceSamples,
     categoricalColorMap,
     errors,
+    warnings,
   };
 }
 
@@ -278,10 +282,12 @@ function resolveStructuralOrientations(holes, stationIndex) {
   });
 }
 
-function parseCollars(source) {
+function parseCollars(source, warnings) {
   if (!source) return [];
   const rows = Array.isArray(source)
     ? source
     : Papa.parse(source, { header: true, skipEmptyLines: true }).data;
-  return collarsFromStandardRows((rows || []).map(row => standardizeColumns(row)));
+  return collarsFromStandardRows((rows || []).map(row => standardizeColumns(row)), {
+    onWarning: message => warnings.push(message),
+  });
 }

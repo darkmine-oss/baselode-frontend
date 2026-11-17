@@ -11,7 +11,7 @@ test('geographic and local coordinate contracts are explicit', () => {
  const g={hole_id:'A',latitude:-30,longitude:120};
  assert.equal(isLocalGridProject(collarsFromStandardRows([g])),false);
  assert.throws(()=>collarsFromStandardRows([{hole_id:'A',easting:'',northing:10}]),/coordinates required/);
- assert.throws(()=>collarsFromStandardRows([g,g]),/Duplicate/);
+ assert.throws(()=>collarsFromStandardRows([g,{...g,latitude:-31}]),/Duplicate.*conflicting.*latitude/);
  assert.throws(()=>collarsFromStandardRows([g,{hole_id:'B',easting:10,northing:20}]),/mix/);
 });
 test('browser folder input cannot combine nested projects', async () => {
